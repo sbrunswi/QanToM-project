@@ -41,7 +41,7 @@ def train(tom_net, optimizer, train_loader, eval_loaders, experiment_folder, wri
 
 
 def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
-             preference=None, mode='train', num_agent=1000):
+             preference=None, mode='train', num_agent=1000,device=None):
     '''
     we provide the base result of figure 2,
     but if you want to show the other results,
@@ -74,7 +74,7 @@ def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
 
 
 def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_size, lr,
-                   experiment_folder, alpha, save_freq, train_dir, eval_dir):
+                   experiment_folder, alpha, save_freq, train_dir, eval_dir,device=None):
 
 
     exp_kwargs, env_kwargs, model_kwargs, agent_type = get_configs(sub_experiment)

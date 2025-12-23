@@ -58,8 +58,9 @@ class softmax_SR(nn.Module):
         return sr
 
 class CharNet(nn.Module):
-    def __init__(self, num_past, num_input, num_step, num_exp=1):
+    def __init__(self, num_past, num_input, num_step, num_exp=1,device=None):
         super(CharNet, self).__init__()
+        self.device = device
         self.num_exp = num_exp
         self.conv1 = ResNetBlock(num_input, 4, 1)
         self.conv2 = ResNetBlock(4, 8, 1)
@@ -67,7 +68,8 @@ class CharNet(nn.Module):
         self.conv4 = ResNetBlock(16, 32, 1)
         self.conv5 = ResNetBlock(32, 32, 1)
         self.bn = nn.BatchNorm2d(32)
-        self.relu = nn.ReLU(inplace=True)
+        #self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.lstm = nn.LSTM(32, 64)
         self.avgpool = nn.AvgPool2d(11)
         self.fc64_2 = nn.Linear(num_step * 64, 2)
@@ -77,8 +79,8 @@ class CharNet(nn.Module):
         self.hidden_size = 64
 
     def init_hidden(self, batch_size):
-        return (tr.zeros(1, batch_size, 64, device='cuda'),
-                tr.zeros(1, batch_size, 64, device='cuda'))
+        return (tr.zeros(1, batch_size, 64, device=self.device),
+                tr.zeros(1, batch_size, 64, device=self.device))
 
     def forward(self, obs):
         # batch, num_past, num_step, height, width, channel
@@ -123,7 +125,7 @@ class PredNet(nn.Module):
     def __init__(self, num_past, num_input, num_exp, num_agent, num_step, device):
         super(PredNet, self).__init__()
 
-        self.e_char = CharNet(num_past, num_input, num_exp=num_exp, num_step=num_step)
+        self.e_char = CharNet(num_past, num_input, num_exp=num_exp, num_step=num_step,device=device)
         self.conv1 = ResNetBlock(14, 8, 1)
         self.conv2 = ResNetBlock(8, 16, 1)
         self.conv3 = ResNetBlock(16, 16, 1)
@@ -136,12 +138,14 @@ class PredNet(nn.Module):
         self.normal_conv5 = ConvBlock(32, 32, 1)
         self.avgpool = nn.AvgPool2d(11)
         self.bn = nn.BatchNorm2d(32)
-        self.relu = nn.ReLU(inplace=True)
+        #self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.action_fc = nn.Linear(32, 5)
         self.comsumption_fc = nn.Linear(32, 4)
         self.device = device
         self.softmax = nn.Softmax()
         self.num_agent = num_agent
+
         self.action_head = nn.Sequential(
             nn.Conv2d(32, 32, 1, 1),
             nn.ReLU(inplace=True),
@@ -210,11 +214,11 @@ class PredNet(nn.Module):
         # for batch in tqdm(data_loader, leave=False, total=len(data_loader)):
         for i, batch in enumerate(data_loader):
             past_traj, curr_state, target_action, target_consume, target_sr, _ = batch
-            past_traj = past_traj.float().cuda()
-            curr_state = curr_state.float().cuda()
-            target_action = target_action.long().cuda().squeeze(-1)
-            target_consume = target_consume.long().cuda().squeeze(-1)
-            target_sr = target_sr.float().cuda()
+            past_traj = past_traj.float().to(self.device) 
+            curr_state = curr_state.float().to(self.device)
+            target_action = target_action.long().to(self.device).squeeze(-1)
+            target_consume = target_consume.long().to(self.device).squeeze(-1)
+            target_sr = target_sr.float().to(self.device)
 
             pred_action, pred_consumption, pred_sr, e_char_2d = self.forward(past_traj, curr_state)
             action_loss = criterion_nll(pred_action, target_action)
@@ -261,7 +265,7 @@ class PredNet(nn.Module):
                 past_traj = past_traj.to(self.device).float()
                 curr_state = curr_state.to(self.device).float()
                 target_action = target_action.squeeze(-1).to(self.device).long()
-                target_consume = target_consume.long().cuda().squeeze(-1)
+                target_consume = target_consume.long().to(self.device).squeeze(-1)
                 target_sr = target_sr.to(self.device).float()
 
                 pred_action, pred_consumption, pred_sr, e_char = self.forward(past_traj, curr_state)
@@ -290,7 +294,7 @@ class PredNet(nn.Module):
                 ind = len(past_traj)
             else:
                 ind = 16
-            diag = tr.eye(5)
+            diag = tr.eye(5,device=target_action.device)
             target_action_onehot = diag[target_action[:ind]]
             target_consume_onehot = diag[target_consume[:ind]]
             dicts['past_traj'] = past_traj[:ind].cpu().numpy()
