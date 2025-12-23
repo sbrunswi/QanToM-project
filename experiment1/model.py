@@ -3,8 +3,9 @@ import torch as tr
 
 
 class CharNet(nn.Module):
-    def __init__(self, num_past, num_input):
+    def __init__(self, num_past, num_input,device):
         super(CharNet, self).__init__()
+        self.device = device
         self.conv = nn.Conv2d(num_input, 8, 2, 1)
         self.relu = nn.ReLU(inplace=True)
         self.lstm = nn.LSTMCell(800, 800)
@@ -13,8 +14,8 @@ class CharNet(nn.Module):
         self.hidden_size = 800
 
     def init_hidden(self, batch_size):
-        return  (tr.zeros(batch_size, 800, device='cuda'),
-                 tr.zeros(batch_size, 800, device='cuda'))
+        return  (tr.zeros(batch_size, 800, device=self.device),
+                 tr.zeros(batch_size, 800, device=self.device))
 
     def forward(self, obs):
         # batch, num_past, step, channel , height, width
@@ -44,7 +45,8 @@ class CharNet(nn.Module):
 class PredNet(nn.Module):
     def __init__(self, num_past, num_input, device):
         super(PredNet, self).__init__()
-        self.e_char = CharNet(num_past, num_input)
+        self.device = device
+        self.e_char = CharNet(num_past, num_input,device=device)
         self.conv1 = nn.Conv2d(8, 32, 2, 1)
         self.conv2 = nn.Conv2d(32, 32, 2, 1)
         self.relu = nn.ReLU(inplace=True)

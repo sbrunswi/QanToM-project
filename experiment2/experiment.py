@@ -10,6 +10,7 @@ from utils import writer
 
 from utils.visualize import *
 from utils.utils import *
+from utils.device import get_device 
 from torch.utils.data import DataLoader
 import torch as tr
 import numpy as np
@@ -79,10 +80,12 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
     exp_kwargs, env_kwargs, model_kwargs, agent_type = get_configs(sub_experiment)
     env = GridWorldEnv(env_kwargs)
     model_kwargs['num_agent'] = num_agent
+    model_kwargs['device'] = device
     tom_net = model.PredNet(**model_kwargs)
+    tom_net.to(device)
 
-    if model_kwargs['device'] == 'cuda':
-        tom_net = tom_net.cuda()
+    # if model_kwargs['device'] == 'cuda':
+    #     tom_net = tom_net.cuda()
     dicts = dict(main=main_experiment, sub=sub_experiment, alpha=alpha, batch_size=batch_size,
                  lr=lr, num_epoch=num_epoch, save_freq=save_freq)
     if train_dir != 'none':
@@ -124,7 +127,7 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
 
     # Visualize Train
     train_fixed_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-    tr_results = evaluate(tom_net, train_fixed_loader, visualizer, is_visualize=True, preference=train_prefer)
+    tr_results = evaluate(tom_net, train_fixed_loader, visualizer, is_visualize=True, preference=train_prefer,device=device)
     # Test
     for i, (eval_loader, eval_prefer) in enumerate(zip(eval_loaders, eval_prefers)):
         ev_results = evaluate(tom_net, eval_loader, visualizer,

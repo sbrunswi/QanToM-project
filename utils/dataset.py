@@ -5,14 +5,14 @@ import os
 class ToMDataset(Dataset):
 
     def __init__(self, episodes, curr_state, target_action, target_prefer=None,
-                 target_sr=None, target_value=None, true_prefer=None, exp='exp1'):
+                 target_sr=None, target_value=None, dones=None, true_prefer=None, exp='exp1'):
         self.episodes = episodes
         self.curr_state = curr_state
 
         self.target_action = target_action
         self.target_prefer = target_prefer
         self.target_sr = target_sr
-
+        self.dones = dones  # optional
         self.exp = exp
 
     def __len__(self):

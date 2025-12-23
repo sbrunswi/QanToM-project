@@ -13,6 +13,7 @@ import torch as tr
 import torch.optim as optim
 import numpy as np
 
+
 def train(tom_net, optimizer, train_loader, eval_loader, experiment_folder, writer, dicts):
 
     for epoch in range(dicts['num_epoch']):
@@ -52,15 +53,17 @@ def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
     return ev_results
 
 def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_size, lr,
-                   experiment_folder, alpha, save_freq):
+                   experiment_folder, alpha, save_freq,train_dir='none', eval_dir='none', device=None):
 
     exp_kwargs, env_kwargs, model_kwargs, agent_kwargs = get_configs(sub_experiment)
     population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
     env = GridWorldEnv(env_kwargs)
+    model_kwargs['device'] = device
     tom_net = model.PredNet(**model_kwargs)
-
-    if model_kwargs['device'] == 'cuda':
-        tom_net = tom_net.cuda()
+    tom_net.to(device)
+    # if model_kwargs['device'] == 'cuda':
+    #     tom_net = tom_net.cuda()
+    # else
 
     dicts = dict(main=main_experiment, sub=sub_experiment, alpha=alpha, batch_size=batch_size,
                  lr=lr, num_epoch=num_epoch, save_freq=save_freq)

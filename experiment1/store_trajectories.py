@@ -9,7 +9,7 @@ class Storage(object):
         self.past_trajectories = np.zeros([len(population), num_past, step, env.height, env.width, 11])
         self.current_state = np.zeros([len(population), env.height, env.width, 6])
         self.target_action = np.zeros([len(population), 5])
-        self.dones = np.zeros([len(population), num_past, step, 1])
+        self.dones = np.zeros([len(population), num_past, step, 1]) # I am not getting this actually! What do they mean by that? 
         self.population = population
         self.num_past = num_past
         self.action_count = np.zeros([len(population), 5])
@@ -32,7 +32,7 @@ class Storage(object):
 
                     obs_concat = np.concatenate([obs, spatial_concat_action], axis=-1)
                     self.past_trajectories[agent_index, past_epi, step] = obs_concat
-                    self.dones[agent_index, past_epi, step] = 1
+                    self.dones[agent_index, past_epi, step] = 1 #what do they do here? I am not getting this actually! What do they mean by that?
 
                     obs, reward, done, _ = self.env.step(action)
                     if done:

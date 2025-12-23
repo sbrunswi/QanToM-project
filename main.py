@@ -2,6 +2,7 @@ import experiment1.experiment as experiment1
 import experiment2.experiment as experiment2
 import argparse
 from utils import utils
+from utils.device import get_device # device will be updated
 
 EXPERIMENTS = [experiment1, experiment2] # experiment 3 will be update
 
@@ -18,18 +19,20 @@ def parse_args():
     parser.add_argument('--save_freq', '-s', type=int, default=10)
     parser.add_argument('--train_dir', default='none', type=str)
     parser.add_argument('--eval_dir', default='none', type=str)
+    parser.add_argument('--device', default='cpu', help="cuda, mps, or cpu")
     args = parser.parse_args()
     return args
 
 
 def main(args):
     experiment_folder = utils.make_folder()
+    device = get_device(args.device)
     EXPERIMENTS[args.main_exp - 1].run_experiment(num_epoch=args.num_epoch, main_experiment=args.main_exp,
                                               sub_experiment=args.sub_exp, num_agent=args.num_agent,
                                               batch_size=args.batch_size, lr=args.lr,
                                               experiment_folder=experiment_folder,
                                               alpha=args.alpha, save_freq=args.save_freq,
-                                              train_dir=args.train_dir, eval_dir=args.eval_dir)
+                                              train_dir=args.train_dir, eval_dir=args.eval_dir,device=args.device)
 
 
 if __name__ == '__main__':
