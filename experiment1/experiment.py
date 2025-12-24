@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 import torch as tr
 import torch.optim as optim
 import numpy as np
-import os  # os.path.join is used on line 84
+import os
 
 
 def train(tom_net, optimizer, train_loader, eval_loader, experiment_folder, writer, dicts):
