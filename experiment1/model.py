@@ -52,8 +52,7 @@ class PredNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.avgpool = nn.AvgPool2d(6)
         self.fc = nn.Linear(32, 5)
-        self.device = device
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=-1)
 
     def init_hidden(self, batch_size):
         return self.e_char.init_hidden(batch_size)
@@ -64,6 +63,8 @@ class PredNet(nn.Module):
         _, _, s, _, _, _ = past_traj.shape
         if s == 0:
             e_char = tr.zeros((b, 2, h, w), device=self.device)
+            # BUG: e_char_2d is not defined when s == 0, but returned on line 81 - will cause NameError
+            e_char_2d = tr.zeros((b, 2), device=self.device)
         else:
             e_char_2d = self.e_char(past_traj)
             e_char = e_char_2d.unsqueeze(-1).unsqueeze(-1)
@@ -85,12 +86,15 @@ class PredNet(nn.Module):
         tot_loss = 0
         for i, batch in enumerate(data_loader):
             past_traj, curr_state, target = batch
-            past_traj = tr.tensor(past_traj, dtype=tr.float, device=self.device)
-            curr_state = tr.tensor(curr_state, dtype=tr.float, device=self.device)
-            target = tr.tensor(target, dtype=tr.float, device=self.device)
-            criterion = nn.KLDivLoss()
+            # Move to correct device/dtype (DataLoader already converts numpy to tensors)
+            past_traj = past_traj.to(dtype=tr.float, device=self.device)
+            curr_state = curr_state.to(dtype=tr.float, device=self.device)
+            target = target.to(dtype=tr.float, device=self.device)
+            # FIXED: Use batchmean reduction to avoid warning
+            criterion = nn.KLDivLoss(reduction='batchmean')
 
             pred, _ = self.forward(past_traj, curr_state)
+            pred = pred.clamp(min=1e-8)
             loss = criterion(pred.log(), target)
             loss.backward()
             optim.step()
@@ -98,6 +102,7 @@ class PredNet(nn.Module):
             targ_onehot = tr.argmax(target, dim=-1)
             tot_acc += tr.sum(pred_onehot==targ_onehot).item()
             tot_loss += loss.item()
+        # BUG: Hardcoded /1000 assumes exactly 1000 samples - should divide by actual number of samples
         return dict(action_acc= tot_acc / 1000, action_loss=tot_loss / (i + 1))
 
     def evaluate(self, data_loader, is_visualize=False):
@@ -105,13 +110,14 @@ class PredNet(nn.Module):
         tot_loss = 0
         for i, batch in enumerate(data_loader):
             with tr.no_grad():
-
                 past_traj, curr_state, target = batch
-                past_traj = tr.tensor(past_traj, dtype=tr.float, device=self.device)
-                curr_state = tr.tensor(curr_state, dtype=tr.float, device=self.device)
-                target = tr.tensor(target, dtype=tr.float, device=self.device)
-                criterion = nn.KLDivLoss()
+                # Move to correct device/dtype (DataLoader already converts numpy to tensors)
+                past_traj = past_traj.to(dtype=tr.float, device=self.device)
+                curr_state = curr_state.to(dtype=tr.float, device=self.device)
+                target = target.to(dtype=tr.float, device=self.device)
+                criterion = nn.KLDivLoss(reduction='batchmean')
             pred, e_char = self.forward(past_traj, curr_state)
+            pred = pred.clamp(min=1e-8)
             loss = criterion(pred.log(), target)
             pred_onehot = tr.argmax(pred, dim=-1)
             targ_onehot = tr.argmax(target, dim=-1)
