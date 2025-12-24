@@ -118,7 +118,7 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
         eval_loaders = [eval_loader]
         train_prefer = train_storage.true_preference
 
-    summary_writer = writer.Writer(os.path.join(experiment_folder, 'logs'))
+    summary_writer = writer.Writer(experiment_folder)
     visualizer = Visualizer(os.path.join(experiment_folder, 'images'), grid_per_pixel=8,
                             max_epoch=num_epoch, height=env.height, width=env.width)
     # Train

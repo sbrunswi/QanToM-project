@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 import torch as tr
 import torch.optim as optim
 import numpy as np
+import os
 
 
 def train(tom_net, optimizer, train_loader, eval_loader, experiment_folder, writer, dicts):
@@ -44,12 +45,16 @@ def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
 
     if is_visualize:
         for n in range(16):
+            # Extract agent positions and past actions from trajectory
             agent_xys = np.where(ev_results['past_traj'][n, 0, :, :, :, 5] == 1)
-            visualizer.get_past_traj(ev_results['past_traj'][n][0][0], agent_xys, 0, sample_num=n)
+            # Extract past actions: channels 6-10 are action encodings
+            env_height, env_width = ev_results['past_traj'][n, 0, 0].shape[0], ev_results['past_traj'][n, 0, 0].shape[1]
+            _, past_actions = np.where(ev_results['past_traj'][n, 0, :, :, :, 6:].sum((1, 2)) == env_height * env_width)
+            visualizer.get_past_traj(ev_results['past_traj'][n][0][0], agent_xys, past_actions, 0, sample_num=n)
             visualizer.get_curr_state(ev_results['curr_state'][n], 0, sample_num=n)
             visualizer.get_action(ev_results['pred_actions'][n], 0, sample_num=n)
 
-        visualizer.get_char(ev_results['e_char'], most_act, count_act, 0)
+        visualizer.get_action_char(ev_results['e_char'], most_act, count_act, 0)
     return ev_results
 
 def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_size, lr,
@@ -80,7 +85,7 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     eval_loader = DataLoader(eval_dataset, batch_size=len(eval_dataset), shuffle=False)
 
-    summary_writer = writer.Writer(os.path.join(experiment_folder, 'logs'))
+    summary_writer = writer.Writer(experiment_folder)
     visualizer = Visualizer(os.path.join(experiment_folder, 'images'), grid_per_pixel=8,
                             max_epoch=num_epoch, height=env.height, width=env.width)
 

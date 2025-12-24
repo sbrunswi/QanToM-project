@@ -11,7 +11,10 @@ class Writer:
         if is_train:
             model_mode = 'Train'
         else:
-            model_mode = 'Eval' + str(num_eval)
+            if num_eval is not None:
+                model_mode = 'Eval' + str(num_eval)
+            else:
+                model_mode = 'Eval'
 
         for key in dkeys:
             val = dicts[key]

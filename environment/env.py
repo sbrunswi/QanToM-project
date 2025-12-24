@@ -49,7 +49,10 @@ class GridWorldEnv:
         self.recent_action = None
         if np.sum(custom) > 0:
             self.observation = copy.deepcopy(custom)
-            self.agent_xy = [np.where(self.observation[:, :, 5] == 1)[0], np.where(self.observation[:, :, 5] == 1)[1]]
+            agent_positions = np.where(self.observation[:, :, 5] == 1)
+            if len(agent_positions[0]) == 0:
+                raise ValueError("No agent found in custom map")
+            self.agent_xy = [agent_positions[0][0], agent_positions[1][0]]
             observation = copy.deepcopy(self.observation)
             return observation
 
@@ -124,6 +127,8 @@ class GridWorldEnv:
                 if self.observation[self.agent_xy[0], self.agent_xy[1], i] == 1:
                     done = True
                     if i != 0:
+                        # BUG: Both branches do the same thing - preference check is useless
+                        # Should differentiate between preferred and non-preferred goals
                         if i == self.preference:
                             reward += self.prefer_reward[i - 1]
                         else:
@@ -150,7 +155,7 @@ class GridWorldEnv:
 
     def obs_well_show(self):
         divider = '-' * 15
-        if self.recent_action != None:
+        if self.recent_action is not None:
             info_msg = 'Step : {}, Action : {}, Done : {}, Reward : {}'.format(
                 self.epi_step, self.act_text[self.recent_action], self.recent_done, self.recent_reward)
         else:
@@ -229,5 +234,5 @@ if __name__ == '__main__':
 
     env.reset(custom=map2)
     env.obs_well_show()
-    obs, _, _, _ , =  env.step(3)
+    obs, _, _, _  =  env.step(3)
     env.obs_well_show()
