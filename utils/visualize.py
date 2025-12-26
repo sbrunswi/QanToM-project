@@ -188,14 +188,44 @@ class Visualizer:
         plt.clf()
 
     def get_consume_char(self, e_char, preference, epoch, foldername='consume_e_char'):
+        """
+        Visualize agent embeddings colored by their preferences.
+
+        Handles both agent-level (N_agents x num_pref) and episode-level (N_episode x N_agents x num_pref)
+        preferences automatically.
+
+        Args:
+            e_char: np.ndarray of shape (N_points, 2)
+            preference: np.ndarray, either (N_points, num_pref) or (N_episode, N_points, num_pref)
+            epoch: int, current epoch
+            foldername: str, subfolder for saving
+        """
+
+        e_char = np.asarray(e_char)
+        preference = np.asarray(preference)
+
+        # --- flatten episode-level preference if needed ---
+        if preference.ndim == 3:
+            # (N_episode, N_points, num_pref) -> (N_points_total, num_pref)
+            N_episode, N_points, num_pref = preference.shape
+            preference = preference.reshape(-1, num_pref)
+            e_char = np.repeat(e_char, N_episode, axis=0)
+        elif preference.ndim != 2:
+            raise ValueError(f"preference must be 2D or 3D, got {preference.shape}")
+
+        # --- shape checks ---
+        if e_char.shape[0] != preference.shape[0]:
+            raise ValueError(f"Mismatch: e_char has {e_char.shape[0]} points, preference has {preference.shape[0]} rows")
+
+        # --- map preferences to colors ---
         color_palette = ['blue', 'magenta', 'orange', 'limegreen', 'black']
         preference_index = np.argmax(preference, axis=-1)
-
         colors = [color_palette[i] for i in preference_index]
+        # --- plot ---
         plt.figure()
         plt.scatter(e_char[:, 0], e_char[:, 1], c=colors)
 
-
+        # --- save ---
         tozero = len(str(self.max_epoch)) - len(str(epoch))
 
         fn = tozero * '0' + str(epoch) + '.jpg'
@@ -206,6 +236,24 @@ class Visualizer:
         plt.savefig(output_file)
         plt.clf()
 
+    # def get_consume_char(self, e_char, preference, epoch, foldername='consume_e_char'):
+    #     color_palette = ['blue', 'magenta', 'orange', 'limegreen', 'black']
+    #     preference_index = np.argmax(preference, axis=-1)
+
+    #     colors = [color_palette[i] for i in preference_index]
+    #     plt.figure()
+    #     plt.scatter(e_char[:, 0], e_char[:, 1], c=colors)
+
+
+    #     tozero = len(str(self.max_epoch)) - len(str(epoch))
+
+    #     fn = tozero * '0' + str(epoch) + '.jpg'
+    #     output_file = os.path.join(self.output_dir, foldername, fn)
+
+    #     if not os.path.exists(os.path.join(self.output_dir, foldername)):
+    #         os.makedirs(os.path.join(self.output_dir, foldername))
+    #     plt.savefig(output_file)
+    #     plt.clf()
 
     def tsne_consume_char(self, e_char, preference, epoch, foldername='consume_e_char_tsne'):
         model = TSNE(2)
