@@ -15,7 +15,7 @@ def parse_args():
     parser.add_argument('--num_agent', '-na', type=int, default=1000)
     parser.add_argument('--batch_size', '-b', type=int, default=32)
     parser.add_argument('--lr', '-l', type=float, default=1e-4)
-    parser.add_argument('--alpha', '-a', type=float, default=0.01)
+    parser.add_argument('--alpha', '-a', type=float, nargs='+',default=0.01)
     parser.add_argument('--save_freq', '-s', type=int, default=10)
     parser.add_argument('--train_dir', default='none', type=str)
     parser.add_argument('--eval_dir', default='none', type=str)
