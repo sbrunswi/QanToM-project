@@ -53,7 +53,14 @@ class Visualizer:
                 xy_object = np.where(obs[:, :, i] == 1)
                 xs, ys = xy_object
             else:
-                ord, xs, ys = agent_xys
+                # Extract x and y coordinates, and create ordering array for trajectory visualization
+                if isinstance(agent_xys, tuple) and len(agent_xys) == 2:
+                    xs, ys = agent_xys
+                    # Create ordering array (step numbers) for trajectory visualization
+                    ord = np.arange(len(xs))
+                else:
+                    # Handle case where agent_xys might already include ordering
+                    ord, xs, ys = agent_xys
 
             for n , (x, y) in enumerate(zip(xs, ys)):
                 if i == 6: #6 past_trajactory
@@ -90,7 +97,6 @@ class Visualizer:
                           255, dtype=np.uint8)
         for i in range(self.problem_type[self.problem]):
             xy_object = np.where(obs[:, :, i] == 1)
-            print(xy_object)
             xs, ys = xy_object
             for x, y in zip(xs, ys):
                 vis_obs[x * self.grid_per_pixel: (x + 1) * self.grid_per_pixel,
