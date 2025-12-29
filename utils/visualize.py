@@ -126,7 +126,7 @@ class Visualizer:
             os.makedirs(os.path.join(self.output_dir, str(sample_num), foldername))
 
         plt.savefig(output_file)
-        plt.clf()
+        plt.close()
 
     def get_prefer(self, consumed_preds, epoch, foldername='consumed', sample_num=0):
         plt.figure()
@@ -145,7 +145,7 @@ class Visualizer:
             os.makedirs(os.path.join(self.output_dir, str(sample_num), foldername))
 
         plt.savefig(output_file)
-        plt.clf()
+        plt.close()
 
     def get_sr(self, obs, sr_preds, epoch, foldername='sr', sample_num=0):
         palette = copy.deepcopy(self.palette)
@@ -191,7 +191,7 @@ class Visualizer:
         if not os.path.exists(os.path.join(self.output_dir, foldername)):
             os.makedirs(os.path.join(self.output_dir, foldername))
         plt.savefig(output_file)
-        plt.clf()
+        plt.close()
 
     def get_consume_char(self, e_char, preference, epoch, foldername='consume_e_char'):
         color_palette = ['blue', 'magenta', 'orange', 'limegreen', 'black']
@@ -210,11 +210,17 @@ class Visualizer:
         if not os.path.exists(os.path.join(self.output_dir, foldername)):
             os.makedirs(os.path.join(self.output_dir, foldername))
         plt.savefig(output_file)
-        plt.clf()
+        plt.close()
 
 
     def tsne_consume_char(self, e_char, preference, epoch, foldername='consume_e_char_tsne'):
-        model = TSNE(2)
+        n_samples = len(e_char)
+        
+        # Adjust perplexity based on number of samples
+        # t-SNE requires perplexity < n_samples, typically use min(30, n_samples-1)
+        perplexity = min(30, max(5, n_samples - 1)) if n_samples > 1 else 1
+        
+        model = TSNE(2, perplexity=perplexity)
         tsne_results = model.fit_transform(e_char)
 
         color_palette = ['blue', 'magenta', 'orange', 'limegreen']
@@ -233,7 +239,7 @@ class Visualizer:
         if not os.path.exists(os.path.join(self.output_dir, foldername)):
             os.makedirs(os.path.join(self.output_dir, foldername))
         plt.savefig(output_file)
-        plt.clf()
+        plt.close()
 
 
 if __name__ == '__main__':
