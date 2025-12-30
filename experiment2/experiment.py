@@ -68,8 +68,11 @@ def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
             visualizer.get_sr(ev_results['curr_state'][n], ev_targs['targ_sr'][n], filename + '_targ', sample_num=n)
 
 
-        visualizer.get_consume_char(ev_results['e_char'], preference, filename)
-        visualizer.tsne_consume_char(ev_results['e_char'], preference, filename)
+        # Slice preference to match e_char size (e_char is from last batch only)
+        num_samples = len(ev_results['e_char'])
+        preference_sliced = preference[:num_samples] if preference is not None and len(preference) > num_samples else preference
+        visualizer.get_consume_char(ev_results['e_char'], preference_sliced, filename)
+        visualizer.tsne_consume_char(ev_results['e_char'], preference_sliced, filename)
     return ev_results
 
 
@@ -117,6 +120,7 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
         eval_loader = DataLoader(eval_dataset, batch_size=num_agent, shuffle=False) #len(eval_dataset)
         eval_loaders = [eval_loader]
         train_prefer = train_storage.true_preference
+        eval_prefers = [eval_storage.true_preference]
 
     summary_writer = writer.Writer(experiment_folder)
     visualizer = Visualizer(os.path.join(experiment_folder, 'images'), grid_per_pixel=8,
