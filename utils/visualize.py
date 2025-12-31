@@ -115,7 +115,7 @@ class Visualizer:
         plt.figure()
         plt.ylabel('Prob')
         x = np.arange(5)
-        plt.bar(x, np.exp(action_preds))
+        plt.bar(x,action_preds) #removed np.exp(action_preds)
         plt.xticks(x, ['˚', '↓', '→', '↑', '←'])
         tozero = len(str(self.max_epoch)) - len(str(epoch))
 
