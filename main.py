@@ -3,6 +3,7 @@ import experiment2.experiment as experiment2
 import argparse
 from utils import utils
 from utils.device import get_device # device will be updated
+import numpy as np  
 
 EXPERIMENTS = [experiment1, experiment2] # experiment 3 will be update
 
@@ -15,6 +16,7 @@ def parse_args():
     parser.add_argument('--num_agent', '-na', type=int, default=1000)
     parser.add_argument('--batch_size', '-b', type=int, default=32)
     parser.add_argument('--lr', '-l', type=float, default=1e-4)
+    #parser.add_argument('--alpha', '-a', type=np.array, default=np.array([0.01,0.1]))  # for exp2, two alphas
     parser.add_argument('--alpha', '-a', type=float, default=0.01)
     parser.add_argument('--save_freq', '-s', type=int, default=10)
     parser.add_argument('--train_dir', default='none', type=str)
