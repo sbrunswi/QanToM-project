@@ -102,8 +102,9 @@ class PredNet(nn.Module):
             targ_onehot = tr.argmax(target, dim=-1)
             tot_acc += tr.sum(pred_onehot==targ_onehot).item()
             tot_loss += loss.item()
-        # BUG: Hardcoded /1000 assumes exactly 1000 samples - should divide by actual number of samples
-        return dict(action_acc= tot_acc / 1000, action_loss=tot_loss / (i + 1))
+        
+        total_samples = len(data_loader.dataset)
+        return dict(action_acc=tot_acc / total_samples, action_loss=tot_loss / (i + 1))
 
     def evaluate(self, data_loader, is_visualize=False):
         tot_acc = 0
@@ -124,13 +125,15 @@ class PredNet(nn.Module):
             tot_acc += tr.sum(pred_onehot==targ_onehot).item()
             tot_loss += loss.item()
 
+        total_samples = len(data_loader.dataset)
+        
         dicts = dict()
         if is_visualize:
             dicts['past_traj'] = past_traj[:16].cpu().numpy()
             dicts['curr_state'] = curr_state[:16].cpu().numpy()
             dicts['pred_actions'] = pred[:16].cpu().numpy()
             dicts['e_char'] = e_char.cpu().numpy()
-        dicts['action_acc'] = tot_acc / 1000
+        dicts['action_acc'] = tot_acc / total_samples
         dicts['action_loss'] = tot_loss / (i + 1)
 
         return dicts
