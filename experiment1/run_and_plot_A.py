@@ -213,14 +213,69 @@ def parse_existing_results(results_dir=None, num_agent=1000, device='cpu'):
 
 
 
+def _find_experiment_folder(alpha, num_past, results_dir=None):
+    """Find the folder for an experiment with given alpha and num_past, return folder and latest checkpoint."""
+    if results_dir is None:
+        results_dir = project_root / 'results'
+    
+    if not results_dir.exists():
+        return None, None
+    
+    # Look for folders matching the pattern
+    pattern = f"*_alpha_{alpha}_npast_{num_past}"
+    matching_folders = list(results_dir.glob(pattern))
+    
+    # Find the folder with the most recent valid checkpoint
+    best_folder = None
+    best_checkpoint = None
+    best_epoch = -1
+    
+    for folder in matching_folders:
+        checkpoints_dir = folder / 'checkpoints'
+        if checkpoints_dir.exists():
+            checkpoint_files = list(checkpoints_dir.glob('model_*'))
+            if checkpoint_files:
+                checkpoint_files.sort(key=lambda f: f.stat().st_mtime)
+                latest_checkpoint = checkpoint_files[-1]
+                latest_epoch = _get_epoch_from_filename(latest_checkpoint)
+                if latest_epoch > best_epoch:
+                    best_epoch = latest_epoch
+                    best_folder = folder
+                    best_checkpoint = latest_checkpoint
+    
+    if best_epoch > 0:
+        return best_folder, best_checkpoint
+    return None, None
+
+
 def _run_all_experiments(alphas, n_past_values, num_epoch, num_agent, batch_size, lr, device):
     """Run experiments for all combinations of alphas and n_past_values."""
     results = {}
-    print(f"Total experiments: {len(alphas)} alphas × {len(n_past_values)} N_past = {len(alphas) * len(n_past_values)}")
+    total_experiments = len(alphas) * len(n_past_values)
+    print(f"Total experiments: {len(alphas)} alphas × {len(n_past_values)} N_past = {total_experiments}")
     
     for alpha in alphas:
         for n_past in n_past_values:
             key = (alpha, n_past)
+            
+            # Check if experiment already exists and load it directly
+            folder, checkpoint = _find_experiment_folder(alpha, n_past)
+            if checkpoint is not None:
+                print(f"\nSkipping: Experiment alpha={alpha}, N_past={n_past} already exists")
+                print(f"  Folder: {folder.name}")
+                print(f"  Loading checkpoint: {checkpoint.name}")
+                # Load the existing result directly
+                try:
+                    accuracy = _load_and_evaluate_checkpoint(
+                        checkpoint, alpha, n_past, num_agent, device
+                    )
+                    results[key] = accuracy
+                    print(f"  Loaded accuracy: {accuracy:.4f}")
+                except Exception as e:
+                    print(f"  Error loading: {e}")
+                    results[key] = None
+                continue
+            
             accuracy = run_single_experiment(
                 alpha=alpha,
                 num_past=n_past,
@@ -245,19 +300,21 @@ def _find_missing_experiments(results, alphas, n_past_values):
     return missing
 
 
-def plot_results(results, save_path=None):
+def plot_results(results, save_path=None, alphas=None, n_past_values=None):
     """Create the plot with accuracy vs alpha for different N_past values."""
-    # N_past values and their corresponding colors
-    n_past_values = [0, 1, 5]
-    colors = ['lightblue', 'mediumblue', 'darkblue']
-    markers = ['o', 'o', 'o']
+    # Extract unique values from results if not provided
+    if alphas is None:
+        alphas = sorted({alpha for alpha, _ in results.keys()})
+    if n_past_values is None:
+        n_past_values = sorted({n_past for _, n_past in results.keys()})
     
-    # Alpha values (x-axis)
-    alphas = [0.01, 0.03, 0.1, 0.3, 1.0, 3.0]
+    # Color map for different N_past values
+    color_map = {0: 'lightblue', 1: 'mediumblue', 5: 'darkblue', 10: 'navy'}
+    default_colors = ['lightblue', 'mediumblue', 'darkblue', 'navy', 'purple', 'red', 'orange']
     
     plt.figure(figsize=(10, 7))
     
-    for n_past, color, marker in zip(n_past_values, colors, markers):
+    for i, n_past in enumerate(n_past_values):
         accuracies = []
         valid_alphas = []
         
@@ -275,8 +332,11 @@ def plot_results(results, save_path=None):
         accuracies = np.array(accuracies)
         valid_alphas = np.array(valid_alphas)
         
+        # Get color for this N_past
+        color = color_map.get(n_past, default_colors[i % len(default_colors)])
+        
         # Plot data points
-        plt.semilogx(valid_alphas, accuracies, marker=marker, 
+        plt.semilogx(valid_alphas, accuracies, marker='o', 
                     color=color, markersize=8, linestyle='None', 
                     label=f'N_past = {n_past}', linewidth=2)
         
@@ -362,7 +422,11 @@ def main(run_experiments=True, load_from_results=None):
     print("\n" + "="*60)
     print("RESULTS SUMMARY")
     print("="*60)
-    print(f"{'Alpha':<10} {'N_past=0':<12} {'N_past=1':<12} {'N_past=5':<12}")
+    # Dynamic header based on n_past_values
+    header = f"{'Alpha':<10}"
+    for n_past in n_past_values:
+        header += f"{'N_past=' + str(n_past):<12}"
+    print(header)
     print("-"*60)
     for alpha in alphas:
         row = f"{alpha:<10.2f}"
@@ -375,7 +439,7 @@ def main(run_experiments=True, load_from_results=None):
         print(row)
     
     # Create plot
-    plot_results(results)
+    plot_results(results, alphas=alphas, n_past_values=n_past_values)
 
 
 if __name__ == '__main__':
