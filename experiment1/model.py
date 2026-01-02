@@ -20,7 +20,10 @@ class CharNet(nn.Module):
     def forward(self, obs):
         # batch, num_past, step, channel , height, width
         b, num_past, num_step, c, h, w = obs.shape
-        e_char_sum = 0
+        
+        # Initialize e_char_sum as a tensor (not scalar 0) to handle num_past=0 case
+        e_char_sum = tr.zeros((b, 2), device=self.device)
+        
         for p in range(num_past):
             prev_h = self.init_hidden(b)
             obs_past = obs[:, p]
@@ -60,10 +63,9 @@ class PredNet(nn.Module):
     def forward(self, past_traj, obs):
         b, h, w, c = obs.shape
         obs = obs.permute(0, 3, 1, 2)
-        _, _, s, _, _, _ = past_traj.shape
-        if s == 0:
+        _, num_past, _, _, _, _ = past_traj.shape
+        if num_past == 0:
             e_char = tr.zeros((b, 2, h, w), device=self.device)
-            # BUG: e_char_2d is not defined when s == 0, but returned on line 81 - will cause NameError
             e_char_2d = tr.zeros((b, 2), device=self.device)
         else:
             e_char_2d = self.e_char(past_traj)
@@ -81,7 +83,19 @@ class PredNet(nn.Module):
 
         return out, e_char_2d
 
-    def train(self, data_loader, optim):
+    def train(self, data_loader=None, optim=None, mode=None):
+
+        # Handle PyTorch's standard train(mode=True/False) interface
+        # Check if first argument is a boolean (PyTorch's standard interface)
+        if isinstance(data_loader, bool):
+            return super().train(data_loader)
+        if mode is not None:
+            return super().train(mode)
+        if data_loader is None and optim is None:
+            return super().train(True)
+        
+        # Custom training loop
+        super().train(True)  # Set to training mode using parent's method
         tot_acc = 0
         tot_loss = 0
         for i, batch in enumerate(data_loader):
@@ -98,6 +112,7 @@ class PredNet(nn.Module):
             loss = criterion(pred.log(), target)
             loss.backward()
             optim.step()
+            optim.zero_grad()
             pred_onehot = tr.argmax(pred, dim=-1)
             targ_onehot = tr.argmax(target, dim=-1)
             tot_acc += tr.sum(pred_onehot==targ_onehot).item()

@@ -44,13 +44,18 @@ def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
         ev_results = tom_net.evaluate(eval_loader, is_visualize=is_visualize)
 
     if is_visualize:
-        for n in range(16):
-            # Extract agent positions and past actions from trajectory
-            agent_xys = np.where(ev_results['past_traj'][n, 0, :, :, :, 5] == 1)
-            # Extract past actions: channels 6-10 are action encodings
-            env_height, env_width = ev_results['past_traj'][n, 0, 0].shape[0], ev_results['past_traj'][n, 0, 0].shape[1]
-            _, past_actions = np.where(ev_results['past_traj'][n, 0, :, :, :, 6:].sum((1, 2)) == env_height * env_width)
-            visualizer.get_past_traj(ev_results['past_traj'][n][0][0], agent_xys, past_actions, 0, sample_num=n)
+        past_traj = ev_results.get('past_traj', None)
+        num_past = past_traj.shape[1] if past_traj is not None else 0
+        
+        for n in range(min(16, len(ev_results['curr_state']))):
+            # Only visualize past trajectories if num_past > 0
+            if num_past > 0 and past_traj is not None:
+                # Extract agent positions and past actions from trajectory
+                agent_xys = np.where(past_traj[n, 0, :, :, :, 5] == 1)
+                # Extract past actions: channels 6-10 are action encodings
+                env_height, env_width = past_traj[n, 0, 0].shape[0], past_traj[n, 0, 0].shape[1]
+                _, past_actions = np.where(past_traj[n, 0, :, :, :, 6:].sum((1, 2)) == env_height * env_width)
+                visualizer.get_past_traj(past_traj[n][0][0], agent_xys, past_actions, 0, sample_num=n)
             visualizer.get_curr_state(ev_results['curr_state'][n], 0, sample_num=n)
             visualizer.get_action(ev_results['pred_actions'][n], 0, sample_num=n)
 
@@ -94,6 +99,10 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
     train(tom_net, optimizer, train_loader, eval_loader, experiment_folder,
           summary_writer, dicts)
 
+    # Save final checkpoint (after training completes)
+    final_epoch = dicts['num_epoch'] - 1
+    utils.save_model(tom_net, dicts, experiment_folder, final_epoch)
+
     # Test
     eval_storage.reset()
     test_data = eval_storage.extract()
@@ -103,6 +112,8 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
     most_act, count_act = eval_storage.get_most_act()
     ev_results = evaluate(tom_net, test_loader, visualizer, is_visualize=True,
                           most_act=most_act, count_act=count_act)
+    
+    return ev_results  # Return final evaluation results
 
 
 

@@ -61,7 +61,10 @@ class Storage(object):
 
     def get_most_act(self):
         action_count = copy.deepcopy(self.action_count)
-        action_count /= np.reshape(np.sum(action_count, axis=-1), (-1, 1))
+        row_sums = np.sum(action_count, axis=-1)
+        # Avoid division by zero: if an agent has no actions, set sum to 1
+        row_sums = np.where(row_sums == 0, 1, row_sums)
+        action_count /= np.reshape(row_sums, (-1, 1))
 
         return np.argmax(action_count, axis=-1), np.max(action_count, axis=-1)
 
