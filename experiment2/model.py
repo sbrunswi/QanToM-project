@@ -152,7 +152,7 @@ class PredNet(nn.Module):
             nn.AvgPool2d(11),
             nn.Flatten(),
             nn.Linear(32,5),
-            nn.LogSoftmax()
+            nn.LogSoftmax(dim=-1)
         )
 
         self.consumption_head = nn.Sequential(
@@ -161,7 +161,7 @@ class PredNet(nn.Module):
             nn.AvgPool2d(11),
             nn.Flatten(),
             nn.Linear(32, 5),
-            nn.LogSoftmax()
+            nn.LogSoftmax(dim=-1)
         )
 
         self.representation_head = nn.Sequential(
@@ -302,7 +302,8 @@ class PredNet(nn.Module):
             dicts['pred_actions'] = pred_action[:ind].cpu().numpy()
             dicts['pred_consumption'] = pred_consumption[:ind].cpu().numpy()
             dicts['pred_sr'] = pred_sr[:ind].reshape(-1, target_sr.shape[1], target_sr.shape[2], 3).cpu().numpy()
-            dicts['e_char'] = e_char[:1000].cpu().numpy()
+            # Use only last batch's e_char (matches preference slicing in experiment.py)
+            dicts['e_char'] = e_char.cpu().numpy()
             targets['targ_actions'] = target_action_onehot.cpu().numpy()
             targets['targ_consumption'] = target_consume_onehot.cpu().numpy()
             targets['targ_sr'] = target_sr[:ind].cpu().numpy()

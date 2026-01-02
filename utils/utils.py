@@ -32,6 +32,13 @@ def make_pool(agent_type, move_penalty, alpha, num_agent):
     agent_template = agent.agent_type[agent_type]
     population = []
 
+    # Handle list input (from argparse with nargs='+')
+    if isinstance(alpha, list):
+        if len(alpha) == 1:
+            alpha = alpha[0]
+        else:
+            alpha = np.array(alpha)
+    
     if (type(alpha) == int) or (type(alpha) == float):
         for _ in range(num_agent):
             population.append(agent_template(alpha=alpha, num_action=5, move_penalty=move_penalty))
