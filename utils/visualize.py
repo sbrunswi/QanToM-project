@@ -241,6 +241,55 @@ class Visualizer:
         plt.savefig(output_file)
         plt.close()
 
+    def plot_loss_curves(self, train_losses, train_accs, eval_losses, eval_accs, epochs, save_path=None):
+        """
+        Plot training and validation loss/accuracy curves.
+        
+        Args:
+            train_losses: List of training loss values per epoch
+            train_accs: List of training accuracy values per epoch
+            eval_losses: List of evaluation loss values per epoch
+            eval_accs: List of evaluation accuracy values per epoch
+            epochs: List of epoch numbers
+            save_path: Path to save the plot (if None, saves to output_dir/loss_curves.png)
+        """
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        
+        # Plot 1: Loss curves
+        ax1 = axes[0]
+        ax1.plot(epochs, train_losses, label='Train Loss', linewidth=2, marker='o', markersize=4)
+        ax1.plot(epochs, eval_losses, label='Eval Loss', linewidth=2, marker='s', markersize=4)
+        ax1.set_xlabel('Epoch', fontsize=12)
+        ax1.set_ylabel('Loss', fontsize=12)
+        ax1.set_title('Training and Validation Loss', fontsize=14)
+        ax1.legend(fontsize=10)
+        ax1.grid(True, alpha=0.3)
+        
+        # Plot 2: Accuracy curves
+        ax2 = axes[1]
+        ax2.plot(epochs, train_accs, label='Train Acc', linewidth=2, marker='o', markersize=4)
+        ax2.plot(epochs, eval_accs, label='Eval Acc', linewidth=2, marker='s', markersize=4)
+        ax2.set_xlabel('Epoch', fontsize=12)
+        ax2.set_ylabel('Accuracy', fontsize=12)
+        ax2.set_title('Training and Validation Accuracy', fontsize=14)
+        ax2.legend(fontsize=10)
+        ax2.grid(True, alpha=0.3)
+        ax2.set_ylim([0, 1.05])
+        
+        plt.tight_layout()
+        
+        # Save plot
+        if save_path is None:
+            # Save in the parent directory of images (experiment folder)
+            save_path = os.path.join(os.path.dirname(self.output_dir), 'loss_curves.png')
+        else:
+            save_path = os.path.abspath(save_path)
+        
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Loss curves saved to: {save_path}")
+        plt.close()
+
 
 if __name__ == '__main__':
     import argparse
