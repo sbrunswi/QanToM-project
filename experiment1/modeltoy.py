@@ -81,73 +81,59 @@ class PredNet(nn.Module):
         out = self.softmax(self.fc(x))
 
         return out, e_char_2d
-
-    def train(self, data_loader, optim):
-        
-        
-        tot_acc = 0
-        tot_loss = 0
-        
-
-        for i, batch in enumerate(data_loader):
-            past_traj, curr_state, target = batch
-            # Move to correct device/dtype (DataLoader already converts numpy to tensors)
-            past_traj = past_traj.to(dtype=tr.float, device=self.device)
-            curr_state = curr_state.to(dtype=tr.float, device=self.device)
-            target = target.to(dtype=tr.float, device=self.device)
-            # FIXED: Use batchmean reduction to avoid warning
-            criterion = nn.KLDivLoss(reduction='batchmean')
-
-            pred, _ = self.forward(past_traj, curr_state)
-            pred = pred.clamp(min=1e-8)
-            loss = criterion(pred.log(), target)
-
     
-            loss.backward()
-            optim.step()
+class trainer(self,model,device='cpu'):
+     self.model = model.to(device)
+     self.device = device
+     self.criterion = nn.KLDivLoss(reduction="batchmean")
 
-            pred_onehot = tr.argmax(pred, dim=-1)
-            targ_onehot = tr.argmax(target, dim=-1)
+    def train_epoch(self, data_loader, optimizer):
+            self.model.train()
+            
+            tot_acc = 0
+            tot_loss = 0
 
-            tot_acc += tr.sum(pred_onehot==targ_onehot).item()
-            tot_loss += loss.item()
-           
-              
+            for past_traj, curr_state, target in data_loader:
+                past_traj = past_traj.float().to(self.device)
+                curr_state = curr_state.float().to(self.device)
+                target = target.float().to(self.device)
 
-        total_samples = len(data_loader.dataset)
-        
-        return dict(action_acc=tot_acc / total_samples, action_loss=tot_loss / (i + 1))
+                optimizer.zero_grad()
 
-    def evaluate(self, data_loader, is_visualize=False):
+                pred, _ = self.model(past_traj, curr_state)
+                pred = pred.clamp(min=1e-8)
 
-        tot_acc = 0
-        tot_loss = 0
-        
-        for i, batch in enumerate(data_loader):
-            with tr.no_grad():
-                past_traj, curr_state, target = batch
-                # Move to correct device/dtype (DataLoader already converts numpy to tensors)
-                past_traj = past_traj.to(dtype=tr.float, device=self.device)
-                curr_state = curr_state.to(dtype=tr.float, device=self.device)
-                target = target.to(dtype=tr.float, device=self.device)
-                criterion = nn.KLDivLoss(reduction='batchmean')
-            pred, e_char = self.forward(past_traj, curr_state)
-            pred = pred.clamp(min=1e-8)
-            loss = criterion(pred.log(), target)
-            pred_onehot = tr.argmax(pred, dim=-1)
-            targ_onehot = tr.argmax(target, dim=-1)
-            tot_acc += tr.sum(pred_onehot==targ_onehot).item()
-            tot_loss += loss.item()
+                loss = self.criterion(pred.log(), target)
+                loss.backward()
+                optimizer.step()
 
-        total_samples = len(data_loader.dataset)
-        
-        dicts = dict()
-        if is_visualize:
-            dicts['past_traj'] = past_traj[:16].cpu().numpy()
-            dicts['curr_state'] = curr_state[:16].cpu().numpy()
-            dicts['pred_actions'] = pred[:16].cpu().numpy()
-            dicts['e_char'] = e_char.cpu().numpy()
-        dicts['action_acc'] = tot_acc / total_samples
-        dicts['action_loss'] = tot_loss / (i + 1)
+                tot_loss += loss.item()
+                tot_acc += (pred.argmax(-1) == target.argmax(-1)).sum().item()
 
-        return dicts
+            return {
+                "action_loss": tot_loss / len(data_loader),
+                "action_acc": tot_acc / len(data_loader.dataset),
+            }
+
+    def evaluate(self, data_loader):
+        self.model.eval()
+        tot_loss, tot_acc = 0, 0
+
+        with tr.no_grad():
+            for past_traj, curr_state, target in data_loader:
+                past_traj = past_traj.float().to(self.device)
+                curr_state = curr_state.float().to(self.device)
+                target = target.float().to(self.device)
+
+                pred, _ = self.model(past_traj, curr_state)
+                pred = pred.clamp(min=1e-8)
+
+                loss = self.criterion(pred.log(), target)
+                tot_loss += loss.item()
+                tot_acc += (pred.argmax(-1) == target.argmax(-1)).sum().item()
+
+        return {
+            "action_loss": tot_loss / len(data_loader),
+            "action_acc": tot_acc / len(data_loader.dataset),
+        }
+

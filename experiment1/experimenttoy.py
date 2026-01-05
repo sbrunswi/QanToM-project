@@ -1,5 +1,6 @@
+
 from environment.env import GridWorldEnv
-from experiment1 import model
+from experiment1 import modeltoy
 from experiment1.store_trajectories import Storage
 from experiment1.config import get_configs
 
@@ -14,19 +15,18 @@ import torch as tr
 import torch.optim as optim
 import numpy as np
 import os
-
-
-def train(tom_net, optimizer, train_loader, eval_loader, experiment_folder, writer, dicts):
+       
+def train(tom_net, trainer, optimizer, train_loader, eval_loader, experiment_folder, writer, dicts):
 
     for epoch in range(dicts['num_epoch']):
-        results = tom_net.train(train_loader, optimizer)
+        train_results= trainer.train_epoch(train_loader, optimizer)
 
-        ev_results = evaluate(tom_net, eval_loader)
+        ev_results = trainer.evaluate(eval_loader)
 
         if epoch % dicts['save_freq'] == 0:
             utils.save_model(tom_net, dicts, experiment_folder, epoch)
         
-        writer.write(results, epoch, is_train=True)
+        writer.write(train_results, epoch, is_train=True)
         writer.write(ev_results, epoch, is_train=False)
         
         print('Train| Epoch {} Loss |{:.4f}|Acc |{:.4f}'.format(epoch, results['action_loss'], results['action_acc']))
@@ -36,7 +36,7 @@ def train(tom_net, optimizer, train_loader, eval_loader, experiment_folder, writ
 
 
 
-def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
+def evaluate(trainer, eval_loader, visualizer=None, is_visualize=False,
              most_act=None, count_act=None):
     '''
     we provide the base result of figure 2,
@@ -44,7 +44,7 @@ def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
     run the inference.py after you have the models.
     '''
     with tr.no_grad():
-        ev_results = tom_net.evaluate(eval_loader, is_visualize=is_visualize) # this could be
+        ev_results = trainer.evaluate(eval_loader, is_visualize=is_visualize) # this could be
 
         if is_visualize:
             for n in range(16):
@@ -63,11 +63,12 @@ def evaluate(tom_net, eval_loader, visualizer=None, is_visualize=False,
 def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_size, lr,
                    experiment_folder, alpha, save_freq,train_dir='none', eval_dir='none', device=None):
 
-    exp_kwargs, env_kwargs, model_kwargs, agent_kwargs = get_configs(sub_experiment)
+    exp_kwargs, env_kwargs, model_kwargs, trainer_kwargs, agent_kwargs = get_configs(sub_experiment)
     population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
     env = GridWorldEnv(env_kwargs)
     model_kwargs['device'] = device
-    tom_net = model.PredNet(**model_kwargs)
+    tom_net = modeltoy.PredNet(**model_kwargs)
+    trainer = modeltoy.Trainer(tom_net,**trainer_kwargs)
     tom_net.to(device)
     # if model_kwargs['device'] == 'cuda':
     #     tom_net = tom_net.cuda()
@@ -94,7 +95,7 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
 
     # Train
     optimizer = optim.Adam(tom_net.parameters(), lr=lr)
-    train(tom_net, optimizer, train_loader, eval_loader, experiment_folder,
+    train(tom_net, trainer, optimizer, train_loader, eval_loader, experiment_folder,
           summary_writer, dicts)
 
     # Test
@@ -108,4 +109,15 @@ def run_experiment(num_epoch, main_experiment, sub_experiment, num_agent, batch_
                           most_act=most_act, count_act=count_act)
 
 
+if __name__ == '__main__':
+    import sys
+    import os
+    
+    # Add project root to path so imports work when running directly
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, project_root)
+    
+    from environment.env import GridWorldEnv
+    from utils import utils
 
+    
