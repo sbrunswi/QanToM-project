@@ -83,11 +83,14 @@ class PredNet(nn.Module):
         return out, e_char_2d
     
 class trainer(self,model,device='cpu'):
+     
      self.model = model.to(device)
      self.device = device
+     
      self.criterion = nn.KLDivLoss(reduction="batchmean")
 
     def train_epoch(self, data_loader, optimizer):
+            
             self.model.train()
             
             tot_acc = 0
@@ -116,6 +119,7 @@ class trainer(self,model,device='cpu'):
             }
 
     def evaluate(self, data_loader):
+        
         self.model.eval()
         tot_loss, tot_acc = 0, 0
 
