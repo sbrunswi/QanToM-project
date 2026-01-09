@@ -269,6 +269,8 @@ class EnhancedToMObserver(nn.Module):
 
         # Fuse and predict next action logits
         x = torch.cat([c, m, encoded_state], dim=-1)
+
+        
         logits = self.head(x)
         return logits
     
