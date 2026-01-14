@@ -61,7 +61,8 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
         device: Device to run on ('cpu', 'cuda', 'mps')
     """
     exp_kwargs, env_kwargs, model_kwargs, agent_kwargs = get_configs(past)
-    population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
+    train_population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
+    eval_population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
     env = GridWorldEnv(env_kwargs)
     model_kwargs['device'] = device
     tom_net = model.PredNet(**model_kwargs)
@@ -71,8 +72,8 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
                  learning_rate=learning_rate, num_epoch=num_epoch, save_freq=save_freq)
 
     # Make the Dataset
-    train_storage = Storage(env, population, exp_kwargs['num_past'], exp_kwargs['num_step'])
-    eval_storage = Storage(env, population, exp_kwargs['num_past'], exp_kwargs['num_step'])
+    train_storage = Storage(env, train_population, exp_kwargs['num_past'], exp_kwargs['num_step'])
+    eval_storage = Storage(env, eval_population, exp_kwargs['num_past'], exp_kwargs['num_step'])
     train_data = train_storage.extract()
     train_data['exp'] = 'exp1'
     eval_data = eval_storage.extract()
