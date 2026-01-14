@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch as tr
+import pennylane
 
 
 class CharNet(nn.Module):
@@ -152,6 +153,56 @@ class PredNet(nn.Module):
 
         return dicts
     
+class QuantumStateEncoder(nn.Module):
+    """Quantum state encoder using variational quantum circuits."""
+    
+    def __init__(self, input_dim, output_dim n_qubits):
+        super().__init__()
+        assert _HAS_PENNYLANE, "Quantum state encoder requires pennylane to be installed."
+        
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.n_qubits = n_qubits
+        self.n_layers = n_layers
+        
+        # Project input to qubit count
+        self.input_projection = nn.Linear(input_dim, n_qubits)
+        
+        # Build quantum circuit
+        dev = qml.device("default.qubit", wires=n_qubits)
+        
+        @qml.qnode(dev, interface="torch")
+        def quantum_state_circuit(inputs, weights):
+            # Angle embedding of input
+            qml.AngleEmbedding(inputs, wires=range(n_qubits))
+            
+            # Variational layers
+            qml.StronglyEntanglingLayers(weights, wires=range(n_qubits))
+            
+            # Return expectation values
+            return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
+        
+        weight_shapes = {"weights": (n_layers, n_qubits, 3)}
+        self.quantum_layer = qml.qnn.TorchLayer(quantum_state_circuit, weight_shapes)
+        
+        # Post-processing to output dimension
+        self.post_process = nn.Sequential(
+            nn.Linear(n_qubits, 64),
+            nn.ReLU(),
+            nn.Linear(64, output_dim),
+            nn.Tanh()
+        )
+    
+    def forward(self, x):
+        # Project input to qubit count
+        projected_input = self.input_projection(x)
+        
+        # Process through quantum circuit
+        quantum_output = self.quantum_layer(projected_input)
+        
+        # Post-process to final output
+        return self.post_process(quantum_output)
+    
 class PredNetQuantum(nn.Module):
     def __init__(self, num_past, num_input, device):
         super(PredNet, self).__init__()
@@ -260,3 +311,8 @@ class PredNetQuantum(nn.Module):
         dicts['action_loss'] = tot_loss / (i + 1)
 
         return dicts
+    
+if __name__ =="main":
+    Net = CharNet()
+    Net2 =PredNet()
+    print(Net,Net2)

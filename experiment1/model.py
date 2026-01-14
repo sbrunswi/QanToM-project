@@ -151,3 +151,8 @@ class PredNet(nn.Module):
         dicts['action_loss'] = tot_loss / (i + 1)
 
         return dicts
+
+if __name__ =="__main__":
+    Net = CharNet(1,2,"mps")
+    Net2 =PredNet(1,2,"mps")
+    print(Net,Net2)
