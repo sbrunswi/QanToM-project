@@ -138,18 +138,10 @@ if __name__ == '__main__':
     print(f"\n{'='*70}")
     print("DATA STRUCTURE VERIFICATION:")
     print(f"{'='*70}")
-
-    print(f"\n1. dictionary keys:")
-    print(f"   Keys in data_dictionary: {data_dict.keys()}")
-        
-
+    
     episodes = data_dict['episodes']
     current_state = data_dict['curr_state']
     target_action = data_dict['target_action']
-    dones = data_dict['dones']
-
-    
-
     
     print(f"\nShapes:")
     print(f"  past_trajectories: {episodes.shape}")
@@ -171,15 +163,11 @@ if __name__ == '__main__':
     
     # Check trajectory content
     print(f"\nTrajectory Content Check:")
-    agent_id = 0
-    past_id = 0 
-    step_id = 0
-    traj = episodes[agent_id, past_id, step_id]  # [height, width, 11]
+    sample_agent = 0
+    sample_episode = 0
+    traj = episodes[sample_agent, sample_episode, 0]  # [height, width, 11]
     print(f"  Sample trajectory shape: {traj.shape}")
     print(f"  Channels: 0-5 (observation), 6-10 (action encoding)")
-    print("Trajectory (Observation part and action encoding part):")
-    # print("\nPast trajectory (raw values, channels 0–10):")
-    # print(traj)  # prints the actual numbers
     
     # Count non-zero trajectories
     non_zero_trajs = 0
@@ -188,49 +176,7 @@ if __name__ == '__main__':
             # Check if trajectory has agent position
             if np.any(episodes[agent_idx, epi_idx, 0, :, :, 5] == 1):
                 non_zero_trajs += 1
-
-    # ---- past trajectory ----
-    print("Trajectory (Observation part and action encoding part):")
-    # print("\nPast trajectory (raw values, channels 0–10):")
-    # print(traj)  # prints the actual numbers
-
-    # ---- Agent position from observation channel (5)
-    agent_pos = np.argwhere(traj[:, :, 5] == 1)
-    print("\nPast trajectory - agent positions in grid (channel 5):")
-    if agent_pos.size > 0:
-        for pos in agent_pos:
-            print(f"  Position: (row={pos[0]}, col={pos[1]})")
-        else:
-            print("  No agent position found!")
-    # ---- Agent actions taken
-    action_map = traj[:,:, 6:11]
-    action_sums = action_map.sum(axis=(0, 1))  # sum over spatial grid
-    action_id = np.argmax(action_sums)
-    action_names = ['Stay', 'Down', 'Right', 'Up', 'Left']
-    print(f"\nPast trajectory - action taken:")
-    print(f"  Action index: {action_id} ({action_names[action_id]})")
     
-    # ---- Current state ----
-    curr = current_state[agent_id]
-    print("\nCurrent state (raw values, channels 0–5):")
-    print(curr)
-
-    # ---- Target action ----
-    targ = target_action[agent_id]
-    action_names = ['Stay', 'Down', 'Right', 'Up', 'Left']
-    print("\nTarget action (one-hot):")
-    print(targ)
-    print(f"Action index: {np.argmax(targ)} ({action_names[np.argmax(targ)]})")
-
-    # ---- Done / mask ----
-    print("\nDone / validity mask:")
-    print(dones[agent_id, past_id, step_id, 0])
-
-    print(f"\n{'='*70}")
-    print("END FIRST ENTRY INSPECTION")
-    print(f"{'='*70}")
-
-   
     print(f"\nTrajectory Statistics:")
     print(f"  Total trajectory slots: {episodes.shape[0] * episodes.shape[1]}")
     print(f"  Non-zero trajectories: {non_zero_trajs}")

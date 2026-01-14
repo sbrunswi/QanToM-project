@@ -18,11 +18,19 @@ def save_model(model, dicts, experiment_folder, epoch):
     filename_str += 'epoch_{}'.format(epoch)
     tr.save(model, '{}/{}'.format(model_path, filename_str))
 
-def make_folder():
+def make_folder(alpha=None, num_past=None, main_experiment=None):
     now = dt.datetime.now(gettz('Asia/Seoul'))
     year, month, day, hour, minutes, sec = str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second
 
-    foldername = '{}_{}_{}_{}_{}_{}'.format(year, month, day, hour, minutes, sec)
+    # Create more intuitive folder name with experiment number, alpha and num_past if provided
+    if alpha is not None and num_past is not None and main_experiment is not None:
+        foldername = '{}_{}_{}_{}_{}_{}_exp{}_alpha_{}_npast_{}'.format(
+            year, month, day, hour, minutes, sec, main_experiment, alpha, num_past)
+    elif alpha is not None and num_past is not None:
+        foldername = '{}_{}_{}_{}_{}_{}_alpha_{}_npast_{}'.format(
+            year, month, day, hour, minutes, sec, alpha, num_past)
+    else:
+        foldername = '{}_{}_{}_{}_{}_{}'.format(year, month, day, hour, minutes, sec)
     folder_dir = './results/{}'.format(foldername)
     if not os.path.exists(folder_dir):
         os.makedirs(folder_dir)

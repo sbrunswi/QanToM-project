@@ -156,3 +156,4 @@ if __name__ =="__main__":
     Net = CharNet(1,2,"mps")
     Net2 =PredNet(1,2,"mps")
     print(Net,Net2)
+

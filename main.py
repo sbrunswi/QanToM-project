@@ -26,8 +26,14 @@ def parse_args():
 
 
 def main(args):
-    experiment_folder = utils.make_folder()
-    device = get_device(args.device)
+    alpha_val = args.alpha[0] if isinstance(args.alpha, list) else args.alpha
+    
+    # make folder for experiment (renamed)
+    experiment_folder = utils.make_folder(
+        alpha=alpha_val, 
+        num_past=args.sub_exp, 
+        main_experiment=args.main_exp
+    )
     EXPERIMENTS[args.main_exp - 1].run_experiment(num_epoch=args.num_epoch, main_experiment=args.main_exp,
                                               sub_experiment=args.sub_exp, num_agent=args.num_agent,
                                               batch_size=args.batch_size, lr=args.lr,
