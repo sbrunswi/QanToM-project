@@ -23,6 +23,9 @@ def parse_args():
     parser.add_argument('--train_dir', default='none', type=str)
     parser.add_argument('--eval_dir', default='none', type=str)
     parser.add_argument('--device', default='cpu', help="cuda, mps, or cpu")
+    parser.add_argument('--use_quantum', action='store_true', help="Use quantum-enhanced PredNetQuantum model")
+    parser.add_argument('--n_qubits', type=int, default=4, help="Number of qubits for quantum model")
+    parser.add_argument('--n_layers', type=int, default=2, help="Number of layers for quantum model")
     args = parser.parse_args()
     return args
 
@@ -48,7 +51,10 @@ def main(args):
         save_freq=args.save_freq,
         train_dir=args.train_dir,
         eval_dir=args.eval_dir,
-        device=args.device
+        device=args.device,
+        use_quantum=args.use_quantum,
+        n_qubits=args.n_qubits,
+        n_layers=args.n_layers
     )
 
 

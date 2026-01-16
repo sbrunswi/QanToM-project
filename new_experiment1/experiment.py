@@ -43,7 +43,8 @@ def visualize_results(ev_results, visualizer, most_act=None, count_act=None):
     visualizer.get_action_char(ev_results['e_char'], most_act, count_act, 0)
 
 def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
-                   experiment_folder, alpha, save_freq, train_dir='none', eval_dir='none', device=None):
+                   experiment_folder, alpha, save_freq, train_dir='none', eval_dir='none', 
+                   device=None, use_quantum=False, n_qubits=4, n_layers=2):
     """
     Run the Theory of Mind experiment.
     
@@ -59,13 +60,25 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
         train_dir: Directory for training data (default: 'none' - generate on fly)
         eval_dir: Directory for eval data (default: 'none' - generate on fly)
         device: Device to run on ('cpu', 'cuda', 'mps')
+        use_quantum: Whether to use quantum-enhanced PredNetQuantum model (default: False)
+        n_qubits: Number of qubits for quantum model (default: 4)
+        n_layers: Number of layers for quantum model (default: 2)
     """
     exp_kwargs, env_kwargs, model_kwargs, agent_kwargs = get_configs(past)
     train_population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
     eval_population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
     env = GridWorldEnv(env_kwargs)
     model_kwargs['device'] = device
-    tom_net = model.PredNet(**model_kwargs)
+    
+    # Choose model based on use_quantum argument
+    if use_quantum:
+        model_kwargs['n_qubits'] = n_qubits
+        model_kwargs['n_layers'] = n_layers
+        model_kwargs['use_quantum'] = True
+        tom_net = model.PredNetQuantum(**model_kwargs)
+    else:
+        tom_net = model.PredNet(**model_kwargs)
+    
     tom_net.to(device)
 
     dicts = dict(past=past, alpha=alpha, batch_size=batch_size,
