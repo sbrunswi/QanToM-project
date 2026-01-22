@@ -44,7 +44,7 @@ def visualize_results(ev_results, visualizer, most_act=None, count_act=None):
 
 def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
                    experiment_folder, alpha, save_freq, train_dir='none', eval_dir='none', 
-                   device=None, use_quantum=False, n_qubits=4, n_layers=2):
+                   device=None, use_quantum=False, n_qubits=4, n_layers=2, loss_type="cross_entropy"):
     """
     Run the Theory of Mind experiment.
     
@@ -63,6 +63,7 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
         use_quantum: Whether to use quantum-enhanced PredNetQuantum model (default: False)
         n_qubits: Number of qubits for quantum model (default: 4)
         n_layers: Number of layers for quantum model (default: 2)
+        loss_type: Type of loss ("cross_entropy" or "kl_divergence") (default: "cross_entropy")
     """
     exp_kwargs, env_kwargs, model_kwargs, agent_kwargs = get_configs(past)
     train_population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
@@ -111,10 +112,10 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
 
     for epoch in range(dicts['num_epoch']):
         # Train one epoch
-        train_results = train_epoch(tom_net, train_loader, optimizer, device=device)
+        train_results = train_epoch(tom_net, train_loader, optimizer, device=device, loss_type=loss_type)
         
         # Evaluate
-        eval_results = eval_model(tom_net, eval_loader, device=device, is_visualize=False)
+        eval_results = eval_model(tom_net, eval_loader, device=device, is_visualize=False, loss_type=loss_type)
 
         # Save checkpoint
         if epoch % dicts['save_freq'] == 0:
@@ -153,10 +154,23 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
     test_loader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
     most_act, count_act = eval_storage.get_most_act()
     
-    test_results = eval_model(tom_net, test_loader, device=device, is_visualize=True)
+    test_results = eval_model(tom_net, test_loader, device=device, is_visualize=True, loss_type=loss_type)
     visualize_results(test_results, visualizer, most_act=most_act, count_act=count_act)
     
-    return test_results  # Return final evaluation results
+    # Return final evaluation results and training history
+    training_history = {
+        'train_losses': train_losses,
+        'train_accs': train_accs,
+        'eval_losses': eval_losses,
+        'eval_accs': eval_accs,
+        'epochs': epochs,
+        'final_train_loss': train_losses[-1] if train_losses else None,
+        'final_train_acc': train_accs[-1] if train_accs else None,
+        'final_eval_loss': eval_losses[-1] if eval_losses else None,
+        'final_eval_acc': eval_accs[-1] if eval_accs else None,
+    }
+    
+    return test_results, training_history  # Return final evaluation results and training history
 
 
 
