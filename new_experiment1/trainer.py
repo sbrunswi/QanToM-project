@@ -13,11 +13,11 @@ import numpy as np
 from torch.utils.data import DataLoader
 
 
-def train_epoch(model, loader, optimizer, device="cpu"):
+def train_epoch(model, loader, optimizer, device="cpu", loss_type="cross_entropy"):
     """Train a single epoch.
 
     Iterates batches from `loader`, moves tensors to device, performs forward pass,
-    computes cross entropy loss against target action classes, backpropagates,
+    computes loss against target action classes, backpropagates,
     and steps the optimizer. Returns average loss and accuracy over all samples.
 
     Args:
@@ -25,16 +25,22 @@ def train_epoch(model, loader, optimizer, device="cpu"):
         loader: DataLoader with batches of (past_traj, curr_state, target_action)
         optimizer: Optimizer instance
         device: Device to run on
+        loss_type: Type of loss ("cross_entropy" or "kl_divergence")
 
     Returns:
         dict with keys:
-            - action_loss: average cross entropy loss
+            - action_loss: average loss
             - action_acc: accuracy (exact match on argmax)
     """
     model.train()
-    # Use NLLLoss with log-probabilities (equivalent to CrossEntropyLoss)
-    # since model outputs probabilities after softmax
-    criterion = nn.NLLLoss()
+    
+    # Choose loss function
+    if loss_type == "cross_entropy":
+        criterion = nn.NLLLoss()
+    elif loss_type == "kl_divergence":
+        criterion = nn.KLDivLoss(reduction='batchmean')
+    else:
+        raise ValueError(f"Unknown loss_type: {loss_type}. Must be 'cross_entropy' or 'kl_divergence'")
     
     tot_loss = 0.0
     tot_acc = 0.0
@@ -52,12 +58,16 @@ def train_epoch(model, loader, optimizer, device="cpu"):
         
         # Forward pass
         pred, _ = model(past_traj, curr_state)
-        # Convert one-hot target to class indices for CrossEntropyLoss
-        target_classes = torch.argmax(target, dim=-1).long()
+        pred = pred.clamp(min=1e-8)  # Avoid numerical issues
         
-        # CrossEntropyLoss expects logits (before softmax), but model outputs probabilities
-        # Use log-probabilities with NLLLoss (equivalent to CrossEntropyLoss)
-        loss = criterion(torch.log(pred.clamp(min=1e-8)), target_classes)
+        # Compute loss based on loss_type
+        if loss_type == "cross_entropy":
+            # Convert one-hot target to class indices for CrossEntropyLoss
+            target_classes = torch.argmax(target, dim=-1).long()
+            loss = criterion(torch.log(pred), target_classes)
+        elif loss_type == "kl_divergence":
+            # KL divergence: pred should be log-probabilities, target should be probabilities
+            loss = criterion(torch.log(pred), target)
         
         # Backward pass
         loss.backward()
@@ -80,7 +90,7 @@ def train_epoch(model, loader, optimizer, device="cpu"):
     }
 
 
-def eval_model(model, loader, device="cpu", is_visualize=False):
+def eval_model(model, loader, device="cpu", is_visualize=False, loss_type="cross_entropy"):
     """Evaluate model performance with detailed metrics.
 
     Args:
@@ -88,10 +98,11 @@ def eval_model(model, loader, device="cpu", is_visualize=False):
         loader: DataLoader with batches of (past_traj, curr_state, target_action)
         device: Device to run on
         is_visualize: If True, includes visualization data in results
+        loss_type: Type of loss ("cross_entropy" or "kl_divergence")
 
     Returns:
         dict with keys:
-            - action_loss: average cross entropy loss
+            - action_loss: average loss
             - action_acc: accuracy (exact match on argmax)
             - past_traj: (optional) past trajectories for visualization [first 16 samples]
             - curr_state: (optional) current states for visualization [first 16 samples]
@@ -99,8 +110,14 @@ def eval_model(model, loader, device="cpu", is_visualize=False):
             - e_char: (optional) character embeddings [all samples]
     """
     model.eval()
-    # Use NLLLoss with log-probabilities (equivalent to CrossEntropyLoss)
-    criterion = nn.NLLLoss(reduction='sum')
+    
+    # Choose loss function
+    if loss_type == "cross_entropy":
+        criterion = nn.NLLLoss(reduction='sum')
+    elif loss_type == "kl_divergence":
+        criterion = nn.KLDivLoss(reduction='sum')
+    else:
+        raise ValueError(f"Unknown loss_type: {loss_type}. Must be 'cross_entropy' or 'kl_divergence'")
     
     tot_loss = 0.0
     tot_acc = 0.0
@@ -125,11 +142,14 @@ def eval_model(model, loader, device="cpu", is_visualize=False):
             pred, e_char = model(past_traj, curr_state)
             pred = pred.clamp(min=1e-8)  # Avoid log(0)
             
-            # Convert one-hot target to class indices for CrossEntropyLoss
-            target_classes = torch.argmax(target, dim=-1).long()
-            
-            # Compute loss using log-probabilities (equivalent to cross entropy)
-            loss = criterion(torch.log(pred), target_classes)
+            # Compute loss based on loss_type
+            if loss_type == "cross_entropy":
+                # Convert one-hot target to class indices for CrossEntropyLoss
+                target_classes = torch.argmax(target, dim=-1).long()
+                loss = criterion(torch.log(pred), target_classes)
+            elif loss_type == "kl_divergence":
+                # KL divergence: pred should be log-probabilities, target should be probabilities
+                loss = criterion(torch.log(pred), target)
             
             # Compute accuracy
             pred_onehot = torch.argmax(pred, dim=-1)
