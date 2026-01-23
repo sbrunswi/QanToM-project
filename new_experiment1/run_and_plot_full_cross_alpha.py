@@ -29,10 +29,14 @@ def normalize_alpha_key(alpha):
 
 
 def train_model_on_alpha(train_alpha, num_past, num_epoch=100, num_agent=1000, 
-                         batch_size=16, lr=1e-4, device='cpu', save_freq=10):
+                         batch_size=16, lr=1e-4, device='cpu', save_freq=10,
+                         use_quantum=False, n_qubits=4, n_layers=2):
     """Train a model on a specific alpha (or list of alphas) and return the trained model path."""
+    model_type = "quantum" if use_quantum else "classical"
     print(f"\n{'='*60}")
-    print(f"Training model on alpha={train_alpha}, N_past={num_past}")
+    print(f"Training {model_type} model on alpha={train_alpha}, N_past={num_past}")
+    if use_quantum:
+        print(f"Quantum parameters: n_qubits={n_qubits}, n_layers={n_layers}")
     print(f"{'='*60}")
     
     # Create experiment folder with intuitive naming
@@ -60,7 +64,10 @@ def train_model_on_alpha(train_alpha, num_past, num_epoch=100, num_agent=1000,
             save_freq=save_freq,
             train_dir='none',
             eval_dir='none',
-            device=device
+            device=device,
+            use_quantum=use_quantum,
+            n_qubits=n_qubits,
+            n_layers=n_layers
         )
         
         # Find the latest checkpoint
@@ -140,10 +147,11 @@ def _get_epoch_from_filename(filename):
     return -1
 
 
-def _find_trained_model_folder(train_alpha, num_past, results_dir=None):
+def _find_trained_model_folder(train_alpha, num_past, results_dir=None, use_quantum=False):
     """Find the folder for a trained model with given train_alpha and num_past."""
     if results_dir is None:
-        results_dir = project_root / 'results'
+        # Look in new_experiment1/results by default
+        results_dir = Path(__file__).parent / 'results'
     
     if not results_dir.exists():
         return None, None
@@ -156,6 +164,12 @@ def _find_trained_model_folder(train_alpha, num_past, results_dir=None):
     
     pattern = f"*_alpha_{alpha_str}_npast_{num_past}"
     matching_folders = list(results_dir.glob(pattern))
+    
+    # Filter by quantum model if needed (check checkpoint file names or folder structure)
+    if use_quantum:
+        # For quantum models, we might need to check the checkpoint or model type
+        # For now, we'll check all folders and let the loading handle it
+        pass
     
     # Find the folder with the most recent valid checkpoint
     best_folder = None
@@ -182,7 +196,7 @@ def _find_trained_model_folder(train_alpha, num_past, results_dir=None):
 
 def run_cross_alpha_experiments(train_alphas, test_alphas, num_past=1, num_epoch=100, 
                                  num_agent=1000, batch_size=16, lr=1e-4, device='cpu', 
-                                 save_freq=10):
+                                 save_freq=10, use_quantum=False, n_qubits=4, n_layers=2):
     """
     Run cross-alpha experiments: train on train_alphas, test on test_alphas.
     Uses existing models if available, otherwise trains new ones.
@@ -197,6 +211,9 @@ def run_cross_alpha_experiments(train_alphas, test_alphas, num_past=1, num_epoch
         lr: Learning rate
         device: Device to use
         save_freq: Checkpoint save frequency
+        use_quantum: Whether to use quantum-enhanced model
+        n_qubits: Number of qubits for quantum model
+        n_layers: Number of layers for quantum model
     
     Returns:
         Dictionary mapping (train_alpha, test_alpha) -> kl_divergence
@@ -207,11 +224,12 @@ def run_cross_alpha_experiments(train_alphas, test_alphas, num_past=1, num_epoch
         train_key = normalize_alpha_key(train_alpha)
         
         # Check if model already exists
-        folder, checkpoint = _find_trained_model_folder(train_alpha, num_past)
+        folder, checkpoint = _find_trained_model_folder(train_alpha, num_past, use_quantum=use_quantum)
         
         if checkpoint is None:
             # No existing model found, train a new one
-            print(f"\nNo existing model found for train_alpha={train_alpha}, training new model...")
+            model_type = "quantum" if use_quantum else "classical"
+            print(f"\nNo existing {model_type} model found for train_alpha={train_alpha}, training new model...")
             checkpoint = train_model_on_alpha(
                 train_alpha=train_alpha,
                 num_past=num_past,
@@ -220,7 +238,10 @@ def run_cross_alpha_experiments(train_alphas, test_alphas, num_past=1, num_epoch
                 batch_size=batch_size,
                 lr=lr,
                 device=device,
-                save_freq=save_freq
+                save_freq=save_freq,
+                use_quantum=use_quantum,
+                n_qubits=n_qubits,
+                n_layers=n_layers
             )
             
             if checkpoint is None:
@@ -254,17 +275,20 @@ def run_cross_alpha_experiments(train_alphas, test_alphas, num_past=1, num_epoch
     return results
 
 
-def plot_cross_alpha_results(results, train_alphas, test_alphas, save_path=None):
+def plot_cross_alpha_results(results, train_alphas, test_alphas, save_path=None, use_quantum=False):
     """Create the plot showing KL-divergence vs test alpha for each trained alpha."""
-    # Color map for different trained alphas (darker to lighter blue)
+    # Color map for different trained alphas (similar to run_and_plot_A.py style)
+    # Using blue color progression: darker for smaller alphas, lighter for larger alphas
     style_map = {
-        0.01: {'color': 'darkblue', 'marker': 'o', 'label': '0.01'},
-        0.03: {'color': '#1f4e79', 'marker': 'o', 'label': '0.03'},  # Medium-dark blue
-        0.1: {'color': 'lightblue', 'marker': 'o', 'label': '0.1'},
-        0.3: {'color': '#4a86e8', 'marker': 'o', 'label': '0.3'},  # Medium blue
-        1: {'color': '#6fa8dc', 'marker': 'o', 'label': '1'},  # Medium-light blue
-        3: {'color': '#a4c2f4', 'marker': 'o', 'label': '3'},  # Very light blue
+        0.01: {'color': 'navy', 'marker': 'o', 'label': '0.01'},  # Darkest blue
+        0.03: {'color': 'darkblue', 'marker': 'o', 'label': '0.03'},  # Dark blue
+        0.1: {'color': 'mediumblue', 'marker': 'o', 'label': '0.1'},  # Medium blue
+        0.3: {'color': 'blue', 'marker': 'o', 'label': '0.3'},  # Standard blue
+        1: {'color': 'cornflowerblue', 'marker': 'o', 'label': '1'},  # Medium-light blue
+        3: {'color': 'lightblue', 'marker': 'o', 'label': '3'},  # Lightest blue
     }
+    # Default colors fallback (similar to run_and_plot_A.py)
+    default_colors = ['lightblue', 'mediumblue', 'darkblue', 'navy', 'purple', 'red', 'orange']
     
     plt.figure(figsize=(10, 7))
     
@@ -275,8 +299,14 @@ def plot_cross_alpha_results(results, train_alphas, test_alphas, save_path=None)
         if train_key in style_map:
             style = style_map[train_key]
         else:
-            # Default style
-            style = {'color': 'gray', 'marker': 'o', 'label': str(train_alpha)}
+            # Default style - use default colors similar to run_and_plot_A.py
+            # Find index in train_alphas list for consistent color assignment
+            try:
+                idx = train_alphas.index(train_alpha) if train_alpha in train_alphas else len(train_alphas)
+                default_color = default_colors[idx % len(default_colors)]
+            except (ValueError, TypeError):
+                default_color = 'gray'
+            style = {'color': default_color, 'marker': 'o', 'label': str(train_alpha)}
         
         # Collect KL-divergences for all test alphas
         kl_divs = []
@@ -306,7 +336,8 @@ def plot_cross_alpha_results(results, train_alphas, test_alphas, save_path=None)
     
     plt.xlabel('Test α', fontsize=12)
     plt.ylabel('Average KL-divergence', fontsize=12)
-    plt.title('(a)', fontsize=14, loc='left')
+    title = '(a) Quantum Model' if use_quantum else '(a)'
+    plt.title(title, fontsize=14, loc='left')
     plt.xscale('log')
     plt.xlim([0.008, 4])
     plt.ylim(bottom=0)  # Let y-axis auto-scale based on data
@@ -318,7 +349,8 @@ def plot_cross_alpha_results(results, train_alphas, test_alphas, save_path=None)
     if save_path is None:
         results_dir = project_root / 'results'
         results_dir.mkdir(exist_ok=True)
-        save_path = results_dir / 'full_cross_alpha_plot.png'
+        model_suffix = '_quantum' if use_quantum else ''
+        save_path = results_dir / f'full_cross_alpha_plot{model_suffix}.png'
     
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -326,7 +358,8 @@ def plot_cross_alpha_results(results, train_alphas, test_alphas, save_path=None)
     plt.show()
 
 
-def main(num_epoch=100, num_agent=1000, batch_size=16, device=None):
+def main(num_epoch=100, num_agent=1000, batch_size=16, device=None, 
+         use_quantum=False, n_qubits=4, n_layers=2):
     """
     Main function to run cross-alpha experiments and create plot.
     Uses existing models if available, otherwise trains new ones.
@@ -336,6 +369,9 @@ def main(num_epoch=100, num_agent=1000, batch_size=16, device=None):
         num_agent: Number of agents
         batch_size: Batch size
         device: Device to use (if None, will auto-detect)
+        use_quantum: Whether to use quantum-enhanced model
+        n_qubits: Number of qubits for quantum model
+        n_layers: Number of layers for quantum model
     """
     # Configuration
     train_alphas = [0.01, 0.03, 0.1, 0.3, 1, 3]  # Train on these alphas
@@ -348,7 +384,11 @@ def main(num_epoch=100, num_agent=1000, batch_size=16, device=None):
         device = get_device('cuda')
     save_freq = 10
     
+    model_type = "quantum" if use_quantum else "classical"
     print("Running cross-alpha experiments...")
+    print(f"Model type: {model_type}")
+    if use_quantum:
+        print(f"Quantum parameters: n_qubits={n_qubits}, n_layers={n_layers}")
     print(f"Training on alphas: {train_alphas}")
     print(f"Testing on alphas: {test_alphas}")
     print(f"Total experiments: {len(train_alphas)} trained models × {len(test_alphas)} test alphas = {len(train_alphas) * len(test_alphas)}")
@@ -362,7 +402,10 @@ def main(num_epoch=100, num_agent=1000, batch_size=16, device=None):
         batch_size=batch_size,
         lr=lr,
         device=device,
-        save_freq=save_freq
+        save_freq=save_freq,
+        use_quantum=use_quantum,
+        n_qubits=n_qubits,
+        n_layers=n_layers
     )
     
     # Print results summary
@@ -396,7 +439,7 @@ def main(num_epoch=100, num_agent=1000, batch_size=16, device=None):
         print(row)
     
     # Create plot
-    plot_cross_alpha_results(results, train_alphas, test_alphas)
+    plot_cross_alpha_results(results, train_alphas, test_alphas, use_quantum=use_quantum)
 
 
 if __name__ == '__main__':
@@ -411,6 +454,12 @@ if __name__ == '__main__':
                        help='Batch size')
     parser.add_argument('--device', type=str, default='cpu',
                        help='Device (cpu, cuda, mps)')
+    parser.add_argument('--use_quantum', action='store_true',
+                       help='Use quantum-enhanced PredNetQuantum model')
+    parser.add_argument('--n_qubits', type=int, default=3,
+                       help='Number of qubits for quantum model')
+    parser.add_argument('--n_layers', type=int, default=2,
+                       help='Number of layers for quantum model')
     
     args = parser.parse_args()
     
@@ -418,4 +467,5 @@ if __name__ == '__main__':
     device = get_device(args.device) if args.device != 'cpu' else 'cpu'
     
     main(num_epoch=args.num_epoch, num_agent=args.num_agent, 
-         batch_size=args.batch_size, device=device)
+         batch_size=args.batch_size, device=device,
+         use_quantum=args.use_quantum, n_qubits=args.n_qubits, n_layers=args.n_layers)
