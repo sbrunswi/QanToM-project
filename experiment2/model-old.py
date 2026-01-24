@@ -226,17 +226,16 @@ class PredNet(nn.Module):
             sr_loss = cross_entropy_with_soft_label(pred_sr, target_sr.flatten(1, 2))
 
             optim.zero_grad()
-            loss = action_loss 
-            #+ consumption_loss + sr_loss
+            loss = action_loss + consumption_loss + sr_loss
             loss.mean().backward()
             optim.step()
 
             pred_action_ind = tr.argmax(pred_action, dim=-1)
             pred_consumption_ind = tr.argmax(pred_consumption, dim=-1)
 
-            # a_loss += action_loss.item()
-            # c_loss += consumption_loss.item()
-            # s_loss += sr_loss.item()
+            a_loss += action_loss.item()
+            c_loss += consumption_loss.item()
+            s_loss += sr_loss.item()
             tot_loss += loss.item()
 
             action_acc += tr.sum(pred_action_ind == target_action).item()
