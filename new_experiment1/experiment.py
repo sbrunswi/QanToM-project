@@ -66,8 +66,8 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
         loss_type: Type of loss ("cross_entropy" or "kl_divergence") (default: "cross_entropy")
     """
     exp_kwargs, env_kwargs, model_kwargs, agent_kwargs = get_configs(past)
-    train_population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
-    eval_population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
+    
+    population = utils.make_pool('random', exp_kwargs['move_penalty'], alpha, num_agent)
     env = GridWorldEnv(env_kwargs)
     model_kwargs['device'] = device
     
@@ -85,15 +85,20 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
     dicts = dict(past=past, alpha=alpha, batch_size=batch_size,
                  learning_rate=learning_rate, num_epoch=num_epoch, save_freq=save_freq)
 
-    # Make the Dataset
-    train_storage = Storage(env, train_population, exp_kwargs['num_past'], exp_kwargs['num_step'])
-    eval_storage = Storage(env, eval_population, exp_kwargs['num_past'], exp_kwargs['num_step'])
-    train_data = train_storage.extract()
+    storage = Storage(env, population, exp_kwargs['num_past'], exp_kwargs['num_step'])
+    
+    train_data = storage.extract(split='train')
     train_data['exp'] = 'exp1'
-    eval_data = eval_storage.extract()
+    num_train = len(train_data['episodes'])
+    
+    eval_data = storage.extract(split='eval')
     eval_data['exp'] = 'exp1'
+    num_eval = len(eval_data['episodes'])
+    
+    print(f"Population split: {num_train} train agents, {num_eval} eval agents")
     train_dataset = dataset.ToMDataset(**train_data)
     eval_dataset = dataset.ToMDataset(**eval_data)
+    #ADD PLOTTING HERE
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     eval_loader = DataLoader(eval_dataset, batch_size=len(eval_dataset), shuffle=False)
 
@@ -146,13 +151,12 @@ def run_experiment(num_epoch, past, num_agent, batch_size, learning_rate,
     final_epoch = dicts['num_epoch'] - 1
     utils.save_model(tom_net, dicts, experiment_folder, final_epoch)
 
-    # Final test evaluation with visualization
-    eval_storage.reset()
-    test_data = eval_storage.extract()
+    # Final test evaluation with visualization (use eval split)
+    test_data = storage.extract(split='eval')
     test_data['exp'] = 'exp1'
     test_dataset = dataset.ToMDataset(**test_data)
     test_loader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
-    most_act, count_act = eval_storage.get_most_act()
+    most_act, count_act = storage.get_most_act()
     
     test_results = eval_model(tom_net, test_loader, device=device, is_visualize=True, loss_type=loss_type)
     visualize_results(test_results, visualizer, most_act=most_act, count_act=count_act)

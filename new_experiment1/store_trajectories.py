@@ -5,47 +5,93 @@ import copy
 class Storage(object):
 
     def __init__(self, env, population, num_past, step):
+        """
+        Initialize storage for collecting agent trajectories.
+        
+        Args:
+            env: GridWorld environment
+            population: List of agents
+            num_past: Number of past episodes to collect
+            step: Number of steps per episode
+        """
         self.env = env
-        self.past_trajectories = np.zeros([len(population), num_past, step, env.height, env.width, 11])
-        self.current_state = np.zeros([len(population), env.height, env.width, 6])
-        self.target_action = np.zeros([len(population), 5])
-        self.dones = np.zeros([len(population), num_past, step, 1]) # I am not getting this actually! What do they mean by that? 
         self.population = population
         self.num_past = num_past
-        self.action_count = np.zeros([len(population), 5])
+        self.step = step
+        
+        # Storage arrays will be initialized in extract() based on split
+        self.past_trajectories = None
+        self.current_state = None
+        self.target_action = None
+        self.dones = None
+        self.action_count = None
 
-    def extract(self, custom_env=-100):
-        for agent_index, agent in enumerate(self.population):
+    def extract(self, custom_env=-100, split=None):
+        """
+        Extract trajectories from agents.
+        
+        Args:
+            custom_env: Custom environment configuration (default: -100)
+            split: Optional split mode for 80/20 train/eval split:
+                   - 'train': agents where index % 5 != 0 (80%)
+                   - 'eval': agents where index % 5 == 0 (20%)
+                   - None: use all agents
+        
+        Returns:
+            Dictionary with episodes, curr_state, target_action, dones
+        """
+        # Determine which agents to process based on split
+        if split == 'train':
+            # Training: agents where index % 5 != 0 (80%)
+            agent_indices = [i for i in range(len(self.population)) if i % 5 != 0]
+        elif split == 'eval':
+            # Evaluation: agents where index % 5 == 0 (20%)
+            agent_indices = [i for i in range(len(self.population)) if i % 5 == 0]
+        else:
+            # No split: use all agents
+            agent_indices = list(range(len(self.population)))
+        
+        num_agents = len(agent_indices)
+        
+        # Initialize storage arrays based on number of agents to process
+        self.past_trajectories = np.zeros([num_agents, self.num_past, self.step, 
+                                           self.env.height, self.env.width, 11])
+        self.current_state = np.zeros([num_agents, self.env.height, self.env.width, 6])
+        self.target_action = np.zeros([num_agents, 5])
+        self.dones = np.zeros([num_agents, self.num_past, self.step, 1])
+        self.action_count = np.zeros([num_agents, 5])
+        
+        for storage_idx, agent_index in enumerate(agent_indices):
+            agent = self.population[agent_index]
 
             for past_epi in range(self.num_past):
                 if np.sum(custom_env) > 0:
-                    obs = self.env.reset(custom=custom_env[agent_index])
+                    obs = self.env.reset(custom=custom_env[storage_idx])
                 else:
                     obs = self.env.reset()
 
                 # gathering past trajectories
                 for step in range(self.env.epi_max_step):
                     action = agent.act(obs)
-                    self.action_count[agent_index, action] += 1
+                    self.action_count[storage_idx, action] += 1
                     spatial_concat_action = np.zeros((self.env.height, self.env.width, 5))
-                    spatial_concat_action[:, :,  action] = 1
+                    spatial_concat_action[:, :, action] = 1
 
                     obs_concat = np.concatenate([obs, spatial_concat_action], axis=-1)
-                    self.past_trajectories[agent_index, past_epi, step] = obs_concat
-                    self.dones[agent_index, past_epi, step] = 1 #what do they do here? I am not getting this actually! What do they mean by that?
+                    self.past_trajectories[storage_idx, past_epi, step] = obs_concat
+                    self.dones[storage_idx, past_epi, step] = 1
 
                     obs, reward, done, _ = self.env.step(action)
                     if done:
-                        # 0 = done
                         break
 
             # gathering current_state
             for _ in range(1):
                 curr_obs = self.env.reset()
                 target_action = agent.act(curr_obs)
-                self.current_state[agent_index] = curr_obs
-                self.target_action[agent_index, target_action] = 1
-            print('Agent {} make complete!'.format(agent_index))
+                self.current_state[storage_idx] = curr_obs
+                self.target_action[storage_idx, target_action] = 1
+            print('Agent {} (index {}) make complete!'.format(storage_idx, agent_index))
 
         return dict(episodes=self.past_trajectories,
                     curr_state=self.current_state,

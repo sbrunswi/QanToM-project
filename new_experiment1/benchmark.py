@@ -15,11 +15,13 @@ Usage:
     python benchmark.py --alpha 1.0 [other arguments]
     python benchmark.py --alpha 1.0 --qubit_sweep  # Test 3,4,5 qubits
     python benchmark.py --alpha 1.0 --qubit_sweep --qubit_values 2 3 4 5 6  # Custom qubit range
+    python benchmark.py --alpha 1.0 --use_existing  # Use existing results if available
 """
 
 import argparse
 import sys
 import os
+import glob
 import datetime
 from dateutil.tz import gettz
 from pathlib import Path
@@ -66,6 +68,8 @@ def parse_args():
                        help='Run quantum models with 3, 4, and 5 qubits each')
     parser.add_argument('--qubit_values', type=int, nargs='+', default=[3, 4, 5],
                        help='Qubit values to test when --qubit_sweep is enabled (default: 3 4 5)')
+    parser.add_argument('--use_existing', action='store_true',
+                       help='Use existing results from the results folder if available (matches by alpha, npast, model_type, loss_type, and qubits)')
     
     args = parser.parse_args()
     return args
@@ -100,6 +104,137 @@ def create_benchmark_folder(alpha, num_past, model_type, loss_type, n_qubits=Non
     if not os.path.exists(folder_dir):
         os.makedirs(folder_dir)
     return folder_dir
+
+
+def find_existing_result(alpha, num_past, model_type, loss_type, n_qubits=None, results_dir='./results'):
+    """
+    Find an existing result folder that matches the given configuration.
+    
+    Args:
+        alpha: Alpha parameter for agent population
+        num_past: Number of past episodes
+        model_type: "quantum" or "classical"
+        loss_type: "cross_entropy" or "kl_divergence"
+        n_qubits: Number of qubits (only for quantum models)
+        results_dir: Directory to search for results
+    
+    Returns:
+        Path to matching result folder, or None if not found
+    """
+    if not os.path.exists(results_dir):
+        return None
+    
+    # Build pattern to match folder names
+    # Format: YY_M_DD_H_M_S_alpha_X_npast_Y_model_type_loss_type[_qubits_Z]
+    if model_type == "quantum" and n_qubits is not None:
+        pattern = f"*_alpha_{alpha}_npast_{num_past}_{model_type}_{loss_type}_qubits_{n_qubits}"
+    else:
+        pattern = f"*_alpha_{alpha}_npast_{num_past}_{model_type}_{loss_type}"
+    
+    # Find matching folders
+    matching_folders = glob.glob(os.path.join(results_dir, pattern))
+    
+    # Filter to only include folders that have loss_curves.png (completed runs)
+    valid_folders = []
+    for folder in matching_folders:
+        loss_curve_path = os.path.join(folder, 'loss_curves.png')
+        logs_dir = os.path.join(folder, 'logs')
+        if os.path.exists(loss_curve_path) and os.path.exists(logs_dir):
+            valid_folders.append(folder)
+    
+    if not valid_folders:
+        return None
+    
+    # Return the most recent folder (sorted by modification time)
+    valid_folders.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    return valid_folders[0]
+
+
+def load_training_history_from_tensorboard(logs_dir):
+    """
+    Load training history from TensorBoard event files.
+    
+    Args:
+        logs_dir: Path to the logs directory containing TensorBoard event files
+    
+    Returns:
+        Dictionary with training history, or None if loading fails
+    """
+    try:
+        from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+    except ImportError:
+        print("Warning: tensorboard package not available for loading existing results")
+        return None
+    
+    # Find event files in logs directory
+    event_files = glob.glob(os.path.join(logs_dir, 'events.out.tfevents.*'))
+    if not event_files:
+        print(f"Warning: No event files found in {logs_dir}")
+        return None
+    
+    # Use the most recent event file
+    event_file = max(event_files, key=os.path.getmtime)
+    
+    try:
+        # Load events
+        ea = EventAccumulator(logs_dir)
+        ea.Reload()
+        
+        # Get available scalar tags
+        scalar_tags = ea.Tags().get('scalars', [])
+        
+        # Initialize lists for metrics
+        train_losses = []
+        train_accs = []
+        eval_losses = []
+        eval_accs = []
+        epochs = []
+        
+        # Extract metrics from TensorBoard
+        # Tags are in format: 'action_loss/Train', 'action_acc/Train', 'action_loss/Eval', 'action_acc/Eval'
+        if 'action_loss/Train' in scalar_tags:
+            events = ea.Scalars('action_loss/Train')
+            for event in events:
+                if event.step not in epochs:
+                    epochs.append(event.step)
+                train_losses.append(event.value)
+        
+        if 'action_acc/Train' in scalar_tags:
+            events = ea.Scalars('action_acc/Train')
+            for event in events:
+                train_accs.append(event.value)
+        
+        if 'action_loss/Eval' in scalar_tags:
+            events = ea.Scalars('action_loss/Eval')
+            for event in events:
+                eval_losses.append(event.value)
+        
+        if 'action_acc/Eval' in scalar_tags:
+            events = ea.Scalars('action_acc/Eval')
+            for event in events:
+                eval_accs.append(event.value)
+        
+        if not epochs:
+            print(f"Warning: No training data found in {logs_dir}")
+            return None
+        
+        training_history = {
+            'train_losses': train_losses,
+            'train_accs': train_accs,
+            'eval_losses': eval_losses,
+            'eval_accs': eval_accs,
+            'epochs': epochs,
+            'final_train_loss': train_losses[-1] if train_losses else None,
+            'final_train_acc': train_accs[-1] if train_accs else None,
+            'final_eval_loss': eval_losses[-1] if eval_losses else None,
+            'final_eval_acc': eval_accs[-1] if eval_accs else None,
+        }
+        
+        return training_history
+        
+    except Exception as e:
+        print(f"Warning: Failed to load TensorBoard data from {logs_dir}: {e}")
+        return None
 
 
 def print_result_table(description, training_history):
@@ -267,11 +402,40 @@ def run_benchmark_config(alpha, use_quantum, loss_type, args, n_qubits=None):
     # Use provided n_qubits or fall back to args
     actual_n_qubits = n_qubits if n_qubits is not None else args.n_qubits
     
-    # Create descriptive folder name
+    qubit_info = f", Qubits: {actual_n_qubits}" if use_quantum else ""
+    
+    # Check for existing results if --use_existing is set
+    if args.use_existing:
+        existing_folder = find_existing_result(
+            alpha=alpha,
+            num_past=args.past,
+            model_type=model_type,
+            loss_type=loss_type,
+            n_qubits=actual_n_qubits if use_quantum else None
+        )
+        
+        if existing_folder:
+            print("\n" + "="*80)
+            print(f"LOADING EXISTING: {model_type.upper()} model with {loss_type.upper()} loss{qubit_info}")
+            print(f"Alpha: {alpha}, Past: {args.past}")
+            print(f"Found existing results: {existing_folder}")
+            print("="*80 + "\n")
+            
+            # Load training history from TensorBoard logs
+            logs_dir = os.path.join(existing_folder, 'logs')
+            training_history = load_training_history_from_tensorboard(logs_dir)
+            
+            if training_history:
+                print(f"✓ Loaded existing results: {model_type.upper()} model with {loss_type.upper()} loss{qubit_info}")
+                print(f"  Epochs loaded: {len(training_history.get('epochs', []))}")
+                return existing_folder, training_history
+            else:
+                print(f"⚠ Could not load training history from {existing_folder}, will run new experiment")
+    
+    # Create descriptive folder name for new experiment
     experiment_folder = create_benchmark_folder(alpha, args.past, model_type, loss_type, 
                                                  n_qubits=actual_n_qubits if use_quantum else None)
     
-    qubit_info = f", Qubits: {actual_n_qubits}" if use_quantum else ""
     print("\n" + "="*80)
     print(f"Running: {model_type.upper()} model with {loss_type.upper()} loss")
     print(f"Alpha: {alpha}, Past: {args.past}{qubit_info}")
@@ -331,6 +495,8 @@ def main():
         print(f"Qubit sweep enabled: {args.qubit_values}")
     else:
         print(f"Qubits (for quantum): {args.n_qubits}")
+    if args.use_existing:
+        print(f"Use existing results: ENABLED")
     print("="*80)
     
     # Build configuration list based on qubit_sweep flag
